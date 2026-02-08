@@ -1,10 +1,9 @@
 # Dependencies
 node_modules/
 */node_modules/
-package-lock.json
-*/package-lock.json
 yarn.lock
 */yarn.lock
+# Note: package-lock.json is committed for reproducible Docker builds
 
 # Build outputs
 dist/

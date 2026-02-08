@@ -3,8 +3,6 @@ import { io, Socket } from 'socket.io-client';
 import { useChatStore } from '../store/chatStore';
 import { ServerToClientEvents, ClientToServerEvents } from '@silverfox/shared-types';
 
-let socket: Socket<ServerToClientEvents, ClientToServerEvents> | null = null;
-
 export function useSocket() {
   const { 
     addMessage, 
@@ -13,66 +11,89 @@ export function useSocket() {
     setStatus 
   } = useChatStore();
   
-  const socketRef = useRef<Socket<ServerToClientEvents, ClientToServerEvents> | null>(null);
+  // Use ref to track if we've initialized
+  const initialized = useRef(false);
 
   useEffect(() => {
-    if (!socket) {
-      socket = io(window.location.origin, {
-        path: '/socket.io',
-        transports: ['websocket', 'polling'],
-      });
-      socketRef.current = socket;
-    }
+    // Prevent double initialization in React StrictMode
+    if (initialized.current) return;
+    initialized.current = true;
 
-    const s = socket;
+    const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io(window.location.origin, {
+      path: '/socket.io',
+      transports: ['websocket', 'polling'],
+    });
 
-    s.on('connect', () => {
+    const handleConnect = () => {
       console.log('Connected to Silver Fox');
       setConnectionStatus('connected');
-      s.emit('status:request');
-    });
+      socket.emit('status:request');
+    };
 
-    s.on('disconnect', () => {
+    const handleDisconnect = () => {
       console.log('Disconnected from Silver Fox');
       setConnectionStatus('disconnected');
-    });
+    };
 
-    s.on('connect_error', () => {
+    const handleConnectError = () => {
       setConnectionStatus('disconnected');
-    });
+    };
 
-    s.on('chat:message', (message) => {
+    const handleChatMessage = (message: any) => {
       addMessage(message);
-    });
+    };
 
-    s.on('chat:typing', ({ isTyping }) => {
+    const handleTyping = ({ isTyping }: { isTyping: boolean }) => {
       setIsTyping(isTyping);
-    });
+    };
 
-    s.on('status:update', (status) => {
+    const handleStatusUpdate = (status: any) => {
       setStatus(status);
-    });
+    };
 
-    s.on('connection:status', ({ connected, message }) => {
+    const handleConnectionStatus = ({ connected, message }: { connected: boolean; message?: string }) => {
       setConnectionStatus(connected ? 'connected' : 'disconnected');
       if (message) {
         console.warn('Connection status:', message);
       }
-    });
+    };
 
+    // Register listeners
+    socket.on('connect', handleConnect);
+    socket.on('disconnect', handleDisconnect);
+    socket.on('connect_error', handleConnectError);
+    socket.on('chat:message', handleChatMessage);
+    socket.on('chat:typing', handleTyping);
+    socket.on('status:update', handleStatusUpdate);
+    socket.on('connection:status', handleConnectionStatus);
+
+    // Cleanup on unmount
     return () => {
-      // Don't disconnect on unmount, keep socket alive
+      socket.off('connect', handleConnect);
+      socket.off('disconnect', handleDisconnect);
+      socket.off('connect_error', handleConnectError);
+      socket.off('chat:message', handleChatMessage);
+      socket.off('chat:typing', handleTyping);
+      socket.off('status:update', handleStatusUpdate);
+      socket.off('connection:status', handleConnectionStatus);
+      socket.disconnect();
     };
   }, [addMessage, setIsTyping, setConnectionStatus, setStatus]);
 
   const sendMessage = (content: string, conversationId?: number) => {
-    if (socket?.connected) {
+    // Get socket instance
+    const socket = io(window.location.origin, {
+      path: '/socket.io',
+      transports: ['websocket', 'polling'],
+    });
+    
+    if (socket.connected) {
       socket.emit('chat:send', { content, conversationId });
+    } else {
+      console.error('Socket not connected');
+      setConnectionStatus('disconnected');
     }
   };
 
-  return {
-    socket: socketRef.current,
-    sendMessage,
-  };
+  return { sendMessage };
 }
