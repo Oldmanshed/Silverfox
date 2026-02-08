@@ -2,7 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import { createServer } from 'http';
 import dotenv from 'dotenv';
-import { initDatabase, getConversations, getMessages, getConversation, createConversation } from './db.js';
+import db, { initDatabase, getConversations, getMessages, getConversation, createConversation } from './db.js';
 import { initSocketIO } from './socket.js';
 import { getSessionStatus } from './openclaw.js';
 
@@ -133,7 +133,8 @@ async function startServer() {
     const gracefulShutdown = (signal: string) => {
       console.log(`\n${signal} received. Starting graceful shutdown...`);
       server.close(() => {
-        console.log('HTTP server closed');
+        db.close();
+        console.log('Server and database closed');
         process.exit(0);
       });
     };

@@ -4,15 +4,16 @@ import { useChatStore } from '../store/chatStore';
 import { ServerToClientEvents, ClientToServerEvents } from '@silverfox/shared-types';
 
 export function useSocket() {
-  const { 
-    addMessage, 
-    setIsTyping, 
-    setConnectionStatus, 
-    setStatus 
+  const {
+    addMessage,
+    setIsTyping,
+    setConnectionStatus,
+    setStatus
   } = useChatStore();
-  
+
   // Use ref to track if we've initialized
   const initialized = useRef(false);
+  const socketRef = useRef<Socket<ServerToClientEvents, ClientToServerEvents> | null>(null);
 
   useEffect(() => {
     // Prevent double initialization in React StrictMode
@@ -23,6 +24,7 @@ export function useSocket() {
       path: '/socket.io',
       transports: ['websocket', 'polling'],
     });
+    socketRef.current = socket;
 
     const handleConnect = () => {
       console.log('Connected to Silver Fox');
@@ -77,18 +79,13 @@ export function useSocket() {
       socket.off('status:update', handleStatusUpdate);
       socket.off('connection:status', handleConnectionStatus);
       socket.disconnect();
+      socketRef.current = null;
     };
   }, [addMessage, setIsTyping, setConnectionStatus, setStatus]);
 
   const sendMessage = (content: string, conversationId?: number) => {
-    // Get socket instance
-    const socket = io(window.location.origin, {
-      path: '/socket.io',
-      transports: ['websocket', 'polling'],
-    });
-    
-    if (socket.connected) {
-      socket.emit('chat:send', { content, conversationId });
+    if (socketRef.current?.connected) {
+      socketRef.current.emit('chat:send', { content, conversationId });
     } else {
       console.error('Socket not connected');
       setConnectionStatus('disconnected');

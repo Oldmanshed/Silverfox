@@ -5,13 +5,13 @@ import {
   ServerToClientEvents,
 } from '@silverfox/shared-types';
 import { getSessionStatus, sendMessage, getSessionHistory } from './openclaw.js';
-import { createMessage, getMessages, updateConversationTitle, getConversation } from './db.js';
+import { createMessage, getMessages, updateConversationTitle, getConversation, getConversations, createConversation } from './db.js';
 
-let io: SocketIOServer<ClientToClientEvents, ServerToClientEvents>;
+let io: SocketIOServer<ClientToServerEvents, ServerToClientEvents>;
 
-// Track processed message IDs to prevent duplicates
-const processedMessages = new Set<string>();
-const MESSAGE_CACHE_SIZE = 1000;
+// Track processed assistant responses by content hash to prevent duplicates
+const processedResponses = new Set<string>();
+const RESPONSE_CACHE_SIZE = 100;
 
 export function initSocketIO(server: HTTPServer) {
   io = new SocketIOServer<ClientToServerEvents, ServerToClientEvents>(server, {
@@ -87,23 +87,6 @@ export function initSocketIO(server: HTTPServer) {
           }
         }
         
-        // Generate unique message ID to prevent duplicates
-        const messageId = `${socket.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        if (processedMessages.has(messageId)) {
-          console.log('Duplicate message prevented:', messageId);
-          return;
-        }
-        processedMessages.add(messageId);
-        
-        // Clean up old message IDs
-        if (processedMessages.size > MESSAGE_CACHE_SIZE) {
-          const iterator = processedMessages.values();
-          for (let i = 0; i < MESSAGE_CACHE_SIZE / 2; i++) {
-            const value = iterator.next().value;
-            if (value) processedMessages.delete(value);
-          }
-        }
-        
         // Save user message to database
         const userMessage = await createMessage(conversation, 'user', trimmedContent);
         
@@ -155,9 +138,29 @@ export function initSocketIO(server: HTTPServer) {
                 .find((m) => m.role === 'assistant');
               
               if (lastAssistant && !responseReceived) {
+                // Deduplicate by content hash (conversation + content)
+                const responseKey = `${conversation}:${lastAssistant.content}`;
+                if (processedResponses.has(responseKey)) {
+                  console.log('Duplicate assistant response prevented');
+                  responseReceived = true;
+                  clearInterval(pollInterval);
+                  io.emit('chat:typing', { isTyping: false });
+                  return;
+                }
+                processedResponses.add(responseKey);
+
+                // Clean up old response hashes
+                if (processedResponses.size > RESPONSE_CACHE_SIZE) {
+                  const iterator = processedResponses.values();
+                  for (let i = 0; i < RESPONSE_CACHE_SIZE / 2; i++) {
+                    const value = iterator.next().value;
+                    if (value) processedResponses.delete(value);
+                  }
+                }
+
                 responseReceived = true;
                 clearInterval(pollInterval);
-                
+
                 const assistantMessage = await createMessage(
                   conversation,
                   'assistant',
