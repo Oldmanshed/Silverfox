@@ -1,0 +1,107 @@
+/* Import fonts first */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-primary: #0a0a0f;
+    --bg-secondary: #12121a;
+    --bg-tertiary: #1a1a26;
+    --bg-glass: rgba(26, 26, 38, 0.7);
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --royal-600: #7c3aed;
+    --royal-700: #6d28d9;
+    --royal-800: #5b21b9;
+  }
+
+  * {
+    @apply border-void-600;
+  }
+
+  body {
+    @apply bg-void-900 text-text-primary font-sans antialiased;
+    background: radial-gradient(ellipse at top, rgba(124, 58, 237, 0.1) 0%, transparent 50%);
+    min-height: 100vh;
+  }
+}
+
+@layer components {
+  .glass-panel {
+    @apply bg-void-700/70 backdrop-blur-xl border border-void-600/50 rounded-xl;
+  }
+
+  .glass-card {
+    @apply bg-void-800/50 backdrop-blur-md border border-void-600/30 rounded-lg;
+  }
+
+  .btn-primary {
+    @apply bg-royal-700 hover:bg-royal-600 text-white px-4 py-2 rounded-lg 
+           transition-all duration-200 font-medium
+           hover:shadow-lg hover:shadow-royal-700/25 active:scale-95;
+  }
+
+  .btn-secondary {
+    @apply bg-void-700 hover:bg-void-600 text-text-primary px-4 py-2 rounded-lg 
+           transition-all duration-200 font-medium border border-void-600
+           active:scale-95;
+  }
+
+  .input-field {
+    @apply bg-void-800 border border-void-600 rounded-lg px-4 py-2.5
+           text-text-primary placeholder:text-text-muted
+           focus:outline-none focus:border-royal-600 focus:ring-1 focus:ring-royal-600/50
+           transition-all duration-200;
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(124, 58, 237, 0.3) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: rgba(124, 58, 237, 0.3);
+    border-radius: 3px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: rgba(124, 58, 237, 0.5);
+  }
+}
+
+/* Custom scrollbar for webkit browsers */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(124, 58, 237, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(124, 58, 237, 0.5);
+}
+
+/* Selection styling */
+::selection {
+  background: rgba(124, 58, 237, 0.4);
+  color: white;
+}

@@ -1,0 +1,27 @@
+{
+  "name": "silverfox",
+  "version": "0.1.0",
+  "description": "Web-based mission control for OpenClaw",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:api": "npm run dev -w apps/api",
+    "dev:web": "npm run dev -w apps/web",
+    "build": "npm run build -w packages/shared-types && npm run build -w apps/api && npm run build -w apps/web",
+    "lint": "eslint . --ext ts,tsx",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "concurrently": "^8.2.2",
+    "eslint": "^8.55.0",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
