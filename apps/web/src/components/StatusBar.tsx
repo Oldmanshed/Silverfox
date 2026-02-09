@@ -1,24 +1,35 @@
 import { useChatStore } from '../store/chatStore';
-import { Wifi, WifiOff, Cpu, Hash, Clock, Zap } from 'lucide-react';
+import { Wifi, WifiOff, Cpu, Hash, Clock, Zap, Menu } from 'lucide-react';
 
-export function StatusBar() {
+interface StatusBarProps {
+  onToggleSidebar: () => void;
+}
+
+export function StatusBar({ onToggleSidebar }: StatusBarProps) {
   const { connectionStatus, status } = useChatStore();
 
   const formatRuntime = (runtime: string) => {
     if (!runtime || runtime === 'unknown') return '-';
-    // Parse "Xh Ym Zs" format
     return runtime;
   };
 
   return (
-    <div className="glass-panel px-4 py-3 flex items-center justify-between">
-      <div className="flex items-center gap-4">
+    <div className="glass-panel px-4 py-2 flex items-center justify-between">
+      <div className="flex items-center gap-3">
+        {/* Mobile menu toggle */}
+        <button
+          onClick={onToggleSidebar}
+          className="lg:hidden p-1.5 rounded-lg hover:bg-abyss-700/50 transition-colors"
+        >
+          <Menu className="w-5 h-5 text-silver-300" />
+        </button>
+
         {/* Logo */}
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-royal-600 to-royal-800 flex items-center justify-center">
-            <span className="text-white font-bold text-lg">🦊</span>
+          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-amethyst-600 to-amethyst-800 flex items-center justify-center">
+            <span className="text-white font-bold text-sm">🦊</span>
           </div>
-          <span className="font-semibold text-lg bg-gradient-to-r from-white to-royal-200 bg-clip-text text-transparent">
+          <span className="font-semibold text-lg bg-gradient-to-r from-silver-50 to-amethyst-200 bg-clip-text text-transparent">
             Silver Fox
           </span>
         </div>
@@ -46,36 +57,36 @@ export function StatusBar() {
         </div>
       </div>
 
-      {/* Status Metrics */}
-      <div className="flex items-center gap-4 text-sm">
+      {/* Status Metrics — hidden on mobile */}
+      <div className="hidden md:flex items-center gap-4 text-sm">
         {status && (
           <>
-            <div className="flex items-center gap-1.5 text-text-secondary">
-              <Zap className="w-4 h-4 text-royal-400" />
-              <span className="text-text-primary font-medium">
+            <div className="flex items-center gap-1.5 text-silver-300">
+              <Zap className="w-4 h-4 text-amethyst-400" />
+              <span className="text-silver-100 font-medium">
                 {status.model || 'Unknown'}
               </span>
             </div>
 
-            <div className="flex items-center gap-1.5 text-text-secondary">
-              <Hash className="w-4 h-4 text-royal-400" />
-              <span className="text-text-primary font-medium">
+            <div className="flex items-center gap-1.5 text-silver-300">
+              <Hash className="w-4 h-4 text-amethyst-400" />
+              <span className="text-silver-100 font-medium">
                 {status.totalTokens.toLocaleString()}
               </span>
               <span>tokens</span>
             </div>
 
-            <div className="flex items-center gap-1.5 text-text-secondary">
-              <Clock className="w-4 h-4 text-royal-400" />
-              <span className="text-text-primary font-medium">
+            <div className="flex items-center gap-1.5 text-silver-300">
+              <Clock className="w-4 h-4 text-amethyst-400" />
+              <span className="text-silver-100 font-medium">
                 {formatRuntime(status.runtime)}
               </span>
             </div>
 
             {status.channel && (
-              <div className="flex items-center gap-1.5 text-text-secondary">
-                <Cpu className="w-4 h-4 text-royal-400" />
-                <span className="text-text-primary font-medium capitalize">
+              <div className="flex items-center gap-1.5 text-silver-300">
+                <Cpu className="w-4 h-4 text-amethyst-400" />
+                <span className="text-silver-100 font-medium capitalize">
                   {status.channel}
                 </span>
               </div>

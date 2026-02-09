@@ -11,10 +11,10 @@ export function ChatInput() {
 
   const handleSubmit = () => {
     if (!content.trim()) return;
-    
+
     sendMessage(content.trim(), currentConversation || undefined);
     setContent('');
-    
+
     // Reset textarea height
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
@@ -38,7 +38,7 @@ export function ChatInput() {
   }, [content]);
 
   return (
-    <div className="glass-panel p-3 flex items-end gap-3">
+    <div className="glass-card p-3 flex items-end gap-3">
       <div className="flex-1 relative">
         <textarea
           ref={textareaRef}
@@ -49,7 +49,7 @@ export function ChatInput() {
           rows={1}
           className="input-field w-full resize-none min-h-[44px] max-h-[200px] pr-10"
         />
-        <Sparkles className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-royal-400" />
+        <Sparkles className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amethyst-400" />
       </div>
       <button
         onClick={handleSubmit}
