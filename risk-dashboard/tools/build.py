@@ -42,6 +42,8 @@ COLUMNS = {
     "Sales Region": "region",
     "Account": "account",
     "SFDC Account Id": "accountId",
+    "Company GSID": "gsid",
+    "Gainsight URL": "gainsightUrl",
     "ESP": "esp",
     "Type": "type",
     "Quarter": "quarter",
@@ -63,10 +65,10 @@ META = {
     "title": "Area Risk Review",
     "currency": "USD",
     "sources": ["Gainsight", "Salesforce", "Matik"],
-    # Manager notes and sales-leader callouts live in two SharePoint lists. The build
-    # copies them into the page (html --notes/--callouts); siteUrl (html --site-url)
-    # makes the "Add note" links open the lists' forms.
-    "notes": {"list": "Account Risk Notes", "calloutsList": "Region Callouts"},
+    # Account links. {field} is filled from each row (gsid = Gainsight Company GSID,
+    # accountId = SFDC Account Id). Set with html --gainsight-url / --salesforce-url.
+    # A "Gainsight URL" column in the dump overrides the template per row.
+    "links": {},
     "rules": {
         "consumptionThreshold": 0.5,
         "blankConsumptionIsZero": True,
@@ -149,7 +151,7 @@ def snapshot_entry(d: date):
 def load(path: Path):
     if path.exists():
         return json.loads(path.read_text(encoding="utf-8"))
-    return {"meta": dict(META), "snapshots": [], "rows": []}
+    return {"meta": {}, "snapshots": [], "rows": []}
 
 
 def save(data, path: Path):
@@ -177,53 +179,18 @@ def add_snapshot(args):
         print(f"  ! {w}")
 
 
-# SharePoint list export headers (display or internal names) -> note fields.
-NOTE_HEADERS = {
-    "accountId": ["AccountId", "Account Id", "SFDC Account Id"], "account": ["Title", "Account"],
-    "region": ["SalesRegion", "Sales Region"], "week": ["Week"], "analysis": ["Analysis"],
-    "nextStep": ["NextStep", "Next step", "Next Step"], "outlook": ["Outlook"],
-    "author": ["Created By", "Author"], "created": ["Created"],
-}
-CALLOUT_HEADERS = {
-    "region": ["Title", "Region", "Sales Region"], "week": ["Week"], "text": ["Callout"],
-    "author": ["Created By", "Author"], "created": ["Created"],
-}
-
-
-def read_list_export(path: Path, headers: dict):
-    """Read a SharePoint list exported to CSV or Excel (or the same columns from Power Automate)."""
-    import pandas as pd
-
-    df = pd.read_csv(path) if path.suffix.lower() == ".csv" else pd.read_excel(path)
-    norm = {str(c).strip().lower().replace(" ", ""): c for c in df.columns}
-    cols = {}
-    for key, names in headers.items():
-        for n in names:
-            if n.lower().replace(" ", "") in norm:
-                cols[key] = norm[n.lower().replace(" ", "")]
-                break
-    out = []
-    for rec in df.to_dict("records"):
-        item = {k: clean(rec.get(c)) for k, c in cols.items()}
-        if item.get("created") is not None:
-            item["created"] = str(pd.to_datetime(item["created"]).date())
-        out.append(item)
-    print(f"Read {len(out)} items from {path.name} (columns: {', '.join(sorted(cols))})")
-    return out
-
-
 def build_html(args):
     data = load(args.data)
     if not data["rows"]:
         raise SystemExit(f"{args.data} has no rows yet: run 'add' first (or 'sample')")
-    data["meta"] = {**data.get("meta", {}), **{k: v for k, v in META.items() if k != "note"},
-                    "generatedAt": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}
-    if args.site_url:
-        data["meta"]["notes"] = {**data["meta"]["notes"], "siteUrl": args.site_url.rstrip("/")}
-    if args.notes:
-        data["notes"] = read_list_export(args.notes, NOTE_HEADERS)
-    if args.callouts:
-        data["callouts"] = read_list_export(args.callouts, CALLOUT_HEADERS)
+    # Settings come from META in this file; a data file only adds extras (e.g. the sample's note and links).
+    data["meta"] = {**META, **data.get("meta", {}), "generatedAt": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}
+    links = dict(data["meta"].get("links") or {})
+    if args.gainsight_url:
+        links["gainsight"] = args.gainsight_url
+    if args.salesforce_url:
+        links["salesforce"] = args.salesforce_url
+    data["meta"]["links"] = links
     payload = json.dumps(data, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
     html = TEMPLATE.read_text(encoding="utf-8")
     if PLACEHOLDER not in html:
@@ -297,7 +264,7 @@ def make_sample(seed=11):
             used.add(name)
             typ = rnd.choice(["SaaS", "Software"])
             accounts.append({
-                "accountId": f"001SAMPLE{len(accounts) + 1:05d}", "entity": entity, "region": region, "account": name, "type": typ, "esp": rnd.random() < 0.13,
+                "accountId": f"001SAMPLE{len(accounts) + 1:05d}", "gsid": f"1P01SAMPLE{len(accounts) + 1:06d}", "entity": entity, "region": region, "account": name, "type": typ, "esp": rnd.random() < 0.13,
                 "quarter": rnd.choice(all_quarters), "owner": rnd.choice(owners) if rnd.random() > 0.05 else None,
                 "baseline": round(rnd.lognormvariate(12.4, 0.75), 2),
                 "consumption": min(1.0, max(0.0, rnd.betavariate(4, 1.6))) if rnd.random() > 0.06 else None,
@@ -327,7 +294,7 @@ def make_sample(seed=11):
             if reason is None and rnd.random() < 0.4:
                 pct = 0.25  # risk $ recorded but no reason: a data-quality case worth surfacing
             rows.append({
-                "snapshot": s.isoformat(), "accountId": a["accountId"], "entity": a["entity"], "region": a["region"], "account": a["account"], "esp": a["esp"],
+                "snapshot": s.isoformat(), "accountId": a["accountId"], "gsid": a["gsid"], "entity": a["entity"], "region": a["region"], "account": a["account"], "esp": a["esp"],
                 "type": a["type"], "quarter": a["quarter"], "baseline": a["baseline"],
                 "riskAmt": round(a["baseline"] * pct, 2), "riskReason": reason,
                 "riskStatus": None if reason is None else ("Churn" if risk == "High" and rnd.random() < 0.08 else a["status"]),
@@ -335,52 +302,11 @@ def make_sample(seed=11):
                 "saasPhase": a["saasPhase"], "swPhase": a["swPhase"], "risk": risk, "owner": a["owner"], "actions": None,
             })
 
-    entries = [snapshot_entry(s) for s in snaps]
-    meta = dict(META, note="SAMPLE DATA: fictional accounts, notes and callouts.")
-    notes, callouts = sample_notes(rnd, rows, entries)
-    return {"meta": meta, "snapshots": entries, "rows": rows, "sampleNotes": notes, "sampleCallouts": callouts}
-
-
-NOTE_ANALYSIS = [
-    "Customer is comparing costs with {comp}. Value story landed with IT but not yet with finance.",
-    "Sponsor left in the last reorg; new IT director has not engaged yet.",
-    "Adoption stalled after onboarding. Only two of five workloads protected.",
-    "Performance issues on the last two restores, now resolved by support. Sentiment recovering.",
-    "Budget freeze until next fiscal year; renewal likely to slip a quarter.",
-    "Exec sponsor confirmed intent to renew at the QBR. Pricing still open.",
-]
-NOTE_NEXT = [
-    "Exec-to-exec call with our VP before month end.",
-    "Run a health check and share the adoption plan.",
-    "Bring in the partner to position the multi-year option.",
-    "Schedule value review with finance stakeholders.",
-    "Confirm technical fix with the customer and close the support case.",
-]
-OUTLOOKS = ["Expect to save", "At risk", "At risk", "Likely churn"]
-CALLOUTS = [
-    "Two large renewals slipped into next quarter; both still expected to close.",
-    "Competitive pressure rising in mid-market; pricing guidance requested from leadership.",
-    "Adoption programme is moving low-consumption accounts; three moved out of risk this week.",
-]
-
-
-def sample_notes(rnd, rows, entries):
-    latest = entries[-1]["id"]
-    at_risk = sorted((r for r in rows if r["snapshot"] == latest and r["riskAmt"] > 0), key=lambda r: -r["riskAmt"])
-    week_of = {e["id"]: e["week"] for e in entries}
-    notes = []
-    for r in at_risk[: int(len(at_risk) * 0.6)]:
-        for snap in rnd.sample([e["id"] for e in entries[-3:]], rnd.randint(1, 3)):
-            notes.append({
-                "accountId": r["accountId"], "account": r["account"], "region": r["region"], "week": week_of[snap],
-                "analysis": rnd.choice(NOTE_ANALYSIS).format(comp=rnd.choice(["a competitor", "a cloud-native vendor"])),
-                "nextStep": rnd.choice(NOTE_NEXT), "outlook": rnd.choice(OUTLOOKS),
-                "author": rnd.choice(["A. Manager", "B. Manager", "C. Manager"]), "created": snap,
-            })
-    regions = sorted({r["region"] for r in rows})
-    callouts = [{"region": g, "week": entries[-1]["week"], "text": rnd.choice(CALLOUTS), "author": "Sales leader", "created": latest}
-                for g in regions if rnd.random() < 0.7]
-    return notes, callouts
+    meta = dict(note="SAMPLE DATA: fictional accounts.", links={
+        "gainsight": "https://example.gainsightcloud.com/v1/ui/customersuccess360?cid={gsid}",
+        "salesforce": "https://example.lightning.force.com/lightning/r/Account/{accountId}/view",
+    })
+    return {"meta": meta, "snapshots": [snapshot_entry(s) for s in snaps], "rows": rows}
 
 
 def main():
@@ -396,9 +322,8 @@ def main():
     h = sub.add_parser("html", help="build risk-dashboard.html")
     h.add_argument("--data", type=Path, default=HISTORY)
     h.add_argument("-o", "--out", type=Path, default=OUT)
-    h.add_argument("--notes", type=Path, help="export of the Account Risk Notes list (CSV or Excel)")
-    h.add_argument("--callouts", type=Path, help="export of the Region Callouts list (CSV or Excel)")
-    h.add_argument("--site-url", help="SharePoint site URL, for the Add note links (e.g. https://contoso.sharepoint.com/sites/risk)")
+    h.add_argument("--gainsight-url", help="Gainsight account link with a {gsid} placeholder, e.g. https://<tenant>.gainsightcloud.com/v1/ui/customersuccess360?cid={gsid}")
+    h.add_argument("--salesforce-url", help="Salesforce account link, e.g. https://<domain>.lightning.force.com/lightning/r/Account/{accountId}/view")
     s = sub.add_parser("sample", help="write fictional sample data")
     s.add_argument("-o", "--out", type=Path, default=SAMPLE)
     args = ap.parse_args()

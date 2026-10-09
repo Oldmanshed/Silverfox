@@ -30,8 +30,8 @@ It has the same columns as `SourceData`. Use it to test SharePoint before any re
    - [ ] Changing **Region** updates the tiles, charts and tables.
    - [ ] **Snapshot** goes back in time, and the trend chart point is clickable.
    - [ ] The slide tabs switch, and **Show all** expands the table.
-   - [ ] Clicking an account opens its notes.
-   - [ ] The **Add note** link opens the list's form (the sandbox may block new tabs; tell us if it does).
+   - [ ] Clicking an account name opens a new tab (the sample links go to a placeholder
+     address, so an error page there is fine; *nothing happening* means the sandbox blocks links).
    - [ ] **More filters → Slide rules → As the current workbook** shows the overlap warning.
    - [ ] **Print / PDF** gives a usable handout.
    - [ ] Hover tooltips appear on the charts.
@@ -39,37 +39,25 @@ It has the same columns as `SourceData`. Use it to test SharePoint before any re
 If scripts are blocked, the fallback is the **Embed** web part pointing at the same file in a
 document library. The page has no external dependencies (no CDNs, no fonts), so it works offline too.
 
-## Manager notes and callouts (SharePoint lists)
+## Account links (Gainsight and Salesforce)
 
-Notes live in two SharePoint lists. Every update is a **new item**, so each account
-builds up a week-by-week history. The page shows the latest note in the table, and
-the full history when you click an account.
+The page doesn't hold notes. Each account name links to the account in **Gainsight**,
+where the plan and analysis live, and there's a small **Salesforce** link underneath.
+Leaders use the page to find their at-risk accounts, open them in Gainsight, and bring
+their own analysis to the call.
 
-SharePoint shows HTML pages inside a sandboxed frame (`about:srcdoc`) that can't read
-lists. So the **build step copies the lists into the page**: notes show up on the
-next build. In the automated setup, a new note triggers a rebuild, so notes appear
-within minutes.
+Links are built from a template per system, with `{field}` filled from each row:
 
-**Account Risk Notes.** Create each column with the name shown (no spaces), then rename the display name if you like:
-
-| Column | Type |
-|---|---|
-| Title | Account name (the list's built-in column) |
-| AccountId | Single line of text: Salesforce Account Id |
-| SalesRegion | Single line of text |
-| Week | Single line of text, e.g. `FY27-Q3 · Week 2` |
-| Analysis | Multiple lines of text |
-| NextStep | Multiple lines of text |
-| Outlook | Choice: Expect to save / At risk / Likely churn |
-
-**Region Callouts.** Title (sales region), Week, Callout (multiple lines).
-
-Pilot: in each list choose **Export → Export to CSV**, then build with
 ```bash
-python tools/build.py html --notes "Account Risk Notes.csv" --callouts "Region Callouts.csv" \
-    --site-url https://<tenant>.sharepoint.com/sites/<site>
+python tools/build.py html \
+  --gainsight-url  "https://<tenant>.gainsightcloud.com/v1/ui/customersuccess360?cid={gsid}" \
+  --salesforce-url "https://<domain>.lightning.force.com/lightning/r/Account/{accountId}/view"
 ```
-`--site-url` makes the page's **Add note** / **Add a callout** links open the lists' forms.
+
+`{gsid}` is the **Company GSID** column and `{accountId}` is **SFDC Account Id**.
+**Check the Gainsight format** by opening any account's C360 page and copying the
+address bar. If the Matik dump has a ready-made **Gainsight URL** column, that's used
+as-is and no template is needed.
 
 ## 2. Use real data (on your machine, not in this repo)
 
@@ -93,10 +81,11 @@ python tools/build.py html                                          # -> risk-da
 | Sales Entity *(new)* | Sales entity switch, and the top level of the breakdown chart |
 | Sales Region *(new)* | Sales region switch (Europe North, Channel, Service Provider, …) |
 | Account | Rows, and matching accounts between snapshots |
-| SFDC Account Id *(recommended addition)* | Safer matching than the account name |
+| SFDC Account Id *(recommended addition)* | Salesforce link; safer matching between weeks than the account name |
+| Company GSID *(new)* or Gainsight URL *(new)* | Gainsight link on each account |
 | ESP, Type, Quarter, CS Owner Name | Filters |
 | Baseline, Risk $ | All totals |
-| Risk Reason, Risk Sub Reason, Risk Status, Risk | Categories, badges, Churn callout |
+| Risk Reason, Risk Sub Reason, Risk Status, Risk | Slide categories and risk badges |
 | Consumption % | Consumption slide (0–1 or 0–100 both accepted) |
 | SaaS / SW Journey Phase | Journey phase column |
 | Actions *(optional)* | Free text shown on each slide |
