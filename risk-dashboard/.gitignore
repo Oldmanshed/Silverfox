@@ -1,0 +1,5 @@
+# Keep customer data out of git
+*.xlsx
+*.xlsm
+*.csv
+data/*.json

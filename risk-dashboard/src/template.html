@@ -1,0 +1,765 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Customer Risk Review</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7;
+    --surface: #fcfcfb;
+    --surface-2: #f3f2ee;
+    --ink: #0b0b0b;
+    --ink-2: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --axis: #c3c2b7;
+    --border: rgba(11, 11, 11, 0.10);
+    --accent: #2a78d6;
+    --accent-wash: rgba(42, 120, 214, 0.10);
+    --good-text: #006300;
+    --bad-text: #b42f2f;
+    --warn-bg: #fff4d6;
+    --warn-ink: #3d2e00;
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #898781;
+    --good: #0ca30c; --warning: #fab219; --serious: #ec835a; --critical: #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface: #1a1a19; --surface-2: #232321;
+      --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781; --grid: #2c2c2a; --axis: #383835;
+      --border: rgba(255, 255, 255, 0.10);
+      --accent: #3987e5; --accent-wash: rgba(57, 135, 229, 0.14);
+      --good-text: #0ca30c; --bad-text: #e66767; --warn-bg: #3a2f12; --warn-ink: #f5dfa6;
+      --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #6f6e69;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --surface-2: #232321;
+    --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781; --grid: #2c2c2a; --axis: #383835;
+    --border: rgba(255, 255, 255, 0.10);
+    --accent: #3987e5; --accent-wash: rgba(57, 135, 229, 0.14);
+    --good-text: #0ca30c; --bad-text: #e66767; --warn-bg: #3a2f12; --warn-ink: #f5dfa6;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #6f6e69;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--page); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 24px; line-height: 1.2; margin: 0; font-weight: 650; letter-spacing: -0.01em; }
+  h2 { font-size: 15px; margin: 0; font-weight: 600; }
+  .sub { color: var(--ink-2); margin-top: 4px; }
+  .pill { display: inline-block; margin-top: 8px; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); font-size: 12px; border: 1px solid var(--border); }
+
+  .filters { display: flex; flex-wrap: wrap; gap: 10px 12px; align-items: flex-end; margin: 18px 0 14px; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+  .filters label.f { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--ink-2); flex: 1 1 150px; max-width: 230px; min-width: 130px; }
+  .filters .checks { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--ink-2); }
+  .filters .checks label { display: flex; gap: 6px; align-items: center; cursor: pointer; }
+  select, button { font: inherit; color: var(--ink); background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; }
+  select { width: 100%; }
+  button { cursor: pointer; }
+  button:hover, select:hover { border-color: var(--axis); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .spacer { flex: 1 1 0; }
+  .btn-row { display: flex; gap: 8px; align-items: center; }
+  .copied { font-size: 12px; color: var(--good-text); min-width: 50px; text-align: right; }
+
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+  .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; min-width: 0; }
+  .tile .label { color: var(--ink-2); font-size: 13px; }
+  .tile .value { font-size: 26px; font-weight: 650; margin-top: 4px; line-height: 1.15; }
+  .tile .of { color: var(--muted); font-size: 13px; font-weight: 400; }
+  .tile .delta { font-size: 12px; margin-top: 4px; color: var(--ink-2); }
+  .tile.hero { grid-column: span 2; }
+  .tile.hero .value { font-size: 48px; }
+  .good { color: var(--good-text); }
+  .bad { color: var(--bad-text); }
+  @media (max-width: 560px) { .tile.hero { grid-column: span 1; } .tile.hero .value { font-size: 38px; } }
+
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 480px), 1fr)); gap: 12px; margin-top: 12px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; min-width: 0; margin-top: 12px; }
+  .grid2 > .card { margin-top: 0; }
+  .hint { color: var(--muted); font-size: 12px; margin: 2px 0 10px; }
+  .chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--ink-2); margin: 0 0 8px; padding: 0; list-style: none; }
+  .sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+  details.data { margin-top: 8px; font-size: 12px; color: var(--ink-2); }
+  details.data summary { cursor: pointer; color: var(--muted); }
+  details.data table { margin-top: 6px; }
+  .commentary { margin: 0; padding-left: 18px; }
+  .commentary li { margin: 4px 0; }
+
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+  th { font-size: 12px; color: var(--ink-2); font-weight: 600; }
+  td.num, th.num { text-align: right; }
+  td.cell-wrap { white-space: normal; min-width: 160px; }
+  th button { all: unset; cursor: pointer; }
+  th button:focus-visible { outline: 2px solid var(--accent); }
+  th[aria-sort="ascending"] button::after { content: " ▲"; font-size: 9px; }
+  th[aria-sort="descending"] button::after { content: " ▼"; font-size: 9px; }
+  tbody tr:hover { background: var(--surface-2); }
+  tr.total td { font-weight: 600; border-top: 1px solid var(--axis); }
+  .table-scroll { overflow-x: auto; margin: 0 -16px; padding: 0 16px; }
+  .empty { color: var(--muted); padding: 20px 0; text-align: center; }
+  .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+
+  .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 12px; }
+  .tab { display: inline-flex; gap: 8px; align-items: center; border-radius: 999px; padding: 6px 12px; background: var(--surface-2); }
+  .tab[aria-selected="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+  .tab .n { font-size: 12px; opacity: 0.75; font-variant-numeric: tabular-nums; }
+  .slide-head { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: flex-start; }
+  .slide-head input { font: inherit; color: var(--ink); background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; width: 260px; max-width: 100%; }
+  .slide-kpis { margin: 12px 0; }
+  .slide-kpis .tile { background: var(--surface-2); border: 0; }
+  .slide-kpis .value { font-size: 22px; }
+  .rule { font-size: 12px; color: var(--ink-2); background: var(--surface-2); border-radius: 8px; padding: 8px 10px; margin-top: 8px; }
+  .notice { background: var(--warn-bg); color: var(--warn-ink); border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-top: 8px; }
+
+  .checks-list { list-style: none; margin: 0; padding: 0; }
+  .checks-list li { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--grid); align-items: baseline; }
+  .checks-list .st { font-weight: 600; min-width: 70px; }
+  .checks-list .who { color: var(--muted); font-size: 12px; }
+
+  .tip { position: absolute; pointer-events: none; z-index: 10; display: none; background: var(--surface); color: var(--ink); border: 1px solid var(--border); box-shadow: 0 4px 16px rgba(0,0,0,.16); border-radius: 8px; padding: 8px 10px; font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .tip b { font-weight: 600; display: block; margin-bottom: 2px; }
+  .tip .row { display: flex; gap: 14px; justify-content: space-between; }
+  .tip .k { color: var(--ink-2); }
+  footer { margin-top: 24px; color: var(--muted); font-size: 12px; display: flex; flex-wrap: wrap; gap: 4px 16px; justify-content: space-between; }
+  .noscript { background: #fff4d6; color: #3d2e00; border: 1px solid #e8c56a; border-radius: 10px; padding: 12px 16px; margin: 16px 0; }
+
+  @media print {
+    body { background: #fff; }
+    .btn-row, .slide-head input, details.data summary { display: none; }
+    .card, .tile { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="title">Customer Risk Review</h1>
+    <div class="sub" id="subtitle">Loading…</div>
+    <div id="flag"></div>
+  </header>
+
+  <noscript><div class="noscript"><strong>Scripts are blocked on this page.</strong> The region, quarter and snapshot switches need JavaScript. If you see this inside SharePoint, the HTML page settings are blocking scripts.</div></noscript>
+
+  <form class="filters" onsubmit="return false" aria-label="Filters">
+    <label class="f">Region <select id="fRegion"></select></label>
+    <label class="f">Snapshot <select id="fSnap"></select></label>
+    <label class="f">Renewal quarter <select id="fQuarter"></select></label>
+    <label class="f">Type <select id="fType"></select></label>
+    <label class="f">CS owner <select id="fOwner"></select></label>
+    <div class="checks">
+      <label><input type="checkbox" id="fEsp"> ESP accounts only</label>
+      <label><input type="checkbox" id="fMin"> <span id="fMinLabel">Baseline ≥ $100K only</span></label>
+    </div>
+    <div class="spacer"></div>
+    <div class="btn-row">
+      <span class="copied" id="copied" aria-live="polite"></span>
+      <button type="button" id="btnLink" title="Copy a link to this exact view">Copy link</button>
+      <button type="button" id="btnPrint">Print / PDF</button>
+    </div>
+  </form>
+
+  <section class="kpis" id="kpis" aria-label="Summary"></section>
+
+  <section class="card">
+    <h2>Summary</h2>
+    <ul class="commentary" id="commentary"></ul>
+  </section>
+
+  <div class="grid2" style="margin-top:12px">
+    <section class="card">
+      <h2>Risk $ by renewal quarter</h2>
+      <p class="hint">Split by risk category (each account counted once)</p>
+      <ul class="legend" id="qLegend"></ul>
+      <div class="chart" id="qChart"></div>
+    </section>
+    <section class="card">
+      <h2>Risk $ by risk reason</h2>
+      <p class="hint">As entered in Gainsight</p>
+      <div class="chart" id="reasonChart"></div>
+      <details class="data"><summary>Show data</summary><div id="reasonTable"></div></details>
+    </section>
+  </div>
+
+  <section class="card">
+    <h2>Quarterly risk rollup</h2>
+    <p class="hint" id="rollupHint"></p>
+    <div class="table-scroll"><table id="rollup"></table></div>
+  </section>
+
+  <div class="grid2" style="margin-top:12px">
+    <section class="card">
+      <h2>Total risk $ over time</h2>
+      <p class="hint" id="trendHint">One point per snapshot. Click a point to view that snapshot.</p>
+      <div class="chart" id="trend"></div>
+      <details class="data"><summary>Show data</summary><div id="trendTable"></div></details>
+    </section>
+    <section class="card">
+      <h2>Changes since last snapshot</h2>
+      <p class="hint" id="moveHint"></p>
+      <div id="movement"></div>
+    </section>
+  </div>
+
+  <section class="card" id="slides">
+    <div class="slide-head">
+      <div>
+        <h2>Risk categories</h2>
+        <p class="hint" style="margin-bottom:0">One tab per slide in the current deck. Sorted by risk $, top 15 shown, like the MATIK top-15 table.</p>
+      </div>
+      <label class="f" style="font-size:12px;color:var(--ink-2);display:flex;flex-direction:column;gap:4px;min-width:260px">Slide rules
+        <select id="fMode">
+          <option value="exclusive">Each account on one slide (priority order)</option>
+          <option value="overlap">As the current workbook (accounts can repeat)</option>
+        </select>
+      </label>
+    </div>
+    <div class="tabs" role="tablist" id="tabs"></div>
+    <div id="modeNotice"></div>
+    <div class="kpis slide-kpis" id="slideKpis"></div>
+    <div class="slide-head">
+      <div class="hint" id="slideCount" style="margin:0"></div>
+      <input type="search" id="slideSearch" placeholder="Search all accounts on this slide" aria-label="Search accounts">
+    </div>
+    <div class="table-scroll" style="margin-top:8px"><table id="slideTable"></table></div>
+    <div class="rule" id="slideRule"></div>
+  </section>
+
+  <section class="card">
+    <h2>Data checks</h2>
+    <p class="hint">Problems in the source data for the current selection that would make the numbers wrong</p>
+    <ul class="checks-list" id="checks"></ul>
+  </section>
+
+  <footer><span id="footSource"></span><span id="footGen"></span></footer>
+</div>
+<div class="tip" id="tip" role="status"></div>
+
+<script type="application/json" id="risk-data">__RISK_DATA__</script>
+<script>
+(function () {
+  "use strict";
+  var DATA = JSON.parse(document.getElementById("risk-data").textContent);
+  var META = DATA.meta || {};
+  var RULES = Object.assign({ consumptionThreshold: 0.5, blankConsumptionIsZero: true, minBaselineForRollup: 100000 }, META.rules || {});
+
+  // ---------- risk categories (one per slide) ----------
+  // Exclusive mode walks this list in order and stops at the first match.
+  // Overlap mode reproduces the workbook's current per-sheet filters.
+  function cons(r) { return r.consumption == null ? (RULES.blankConsumptionIsZero ? 0 : null) : r.consumption; }
+  function lowCons(r) { var c = cons(r); return c != null && c < RULES.consumptionThreshold; }
+  function hm(r) { return r.risk === "High" || r.risk === "Medium"; }
+  var NAMED = { "Product & Technical Risk": 1, "Value Realization Risk": 1, "Competitive Risk": 1 };
+  var CATS = [
+    { id: "consumption", label: "Consumption", color: "var(--s1)",
+      rule: "Consumption % under " + Math.round(RULES.consumptionThreshold * 100) + "%" + (RULES.blankConsumptionIsZero ? " (blank counts as 0%)" : ""),
+      test: lowCons, overlap: lowCons },
+    { id: "technical", label: "Technical", color: "var(--s2)", rule: "Risk Reason = Product & Technical Risk",
+      test: function (r) { return r.riskReason === "Product & Technical Risk"; } },
+    { id: "value", label: "Value realisation", color: "var(--s3)", rule: "Risk Reason = Value Realization Risk",
+      test: function (r) { return r.riskReason === "Value Realization Risk"; } },
+    { id: "competitive", label: "Competitive", color: "var(--s4)", rule: "Risk Reason = Competitive Risk",
+      test: function (r) { return r.riskReason === "Competitive Risk"; } },
+    { id: "other", label: "Other risk", color: "var(--s5)", rule: "Any other account with Risk = High or Medium, or with Risk $ above zero",
+      test: function (r) { return hm(r) || r.riskAmt > 0; },
+      overlap: function (r) { return !NAMED[r.riskReason] && hm(r); } },
+    { id: "healthy", label: "Healthy", color: "var(--s6)", rule: "Everything else",
+      test: function () { return true; },
+      overlap: function (r) { return r.risk === "Low" && !lowCons(r) && r.riskReason !== "Product & Technical Risk" && r.riskReason !== "Competitive Risk"; } }
+  ];
+  var CAT = {};
+  CATS.forEach(function (c, i) { c.rank = i; c.overlap = c.overlap || c.test; CAT[c.id] = c; });
+  var RISK_CATS = CATS.filter(function (c) { return c.id !== "healthy"; });
+  function category(r) { for (var i = 0; i < CATS.length; i++) if (CATS[i].test(r)) return CATS[i].id; return "healthy"; }
+  var RISK_LEVEL = {
+    High: { color: "var(--critical)", icon: "✖" }, Medium: { color: "var(--serious)", icon: "▲" },
+    Low: { color: "var(--good)", icon: "●" }
+  };
+
+  // ---------- indexes ----------
+  var snaps = DATA.snapshots.slice().sort(function (a, b) { return a.id < b.id ? -1 : 1; });
+  var snapIdx = {};
+  snaps.forEach(function (s, i) { snapIdx[s.id] = i; });
+  var bySnap = {};
+  DATA.rows.forEach(function (r) { (bySnap[r.snapshot] = bySnap[r.snapshot] || []).push(r); r._cat = category(r); });
+  function uniq(list) { return list.filter(function (v, i, a) { return v != null && a.indexOf(v) === i; }).sort(); }
+  var REGIONS = uniq(DATA.rows.map(function (r) { return r.region; }));
+
+  // ---------- formatting ----------
+  var cur = META.currency || "USD", mC, mF;
+  try {
+    mC = new Intl.NumberFormat(undefined, { style: "currency", currency: cur, notation: "compact", maximumFractionDigits: 1 });
+    mF = new Intl.NumberFormat(undefined, { style: "currency", currency: cur, maximumFractionDigits: 0 });
+  } catch (e) { mC = mF = { format: function (v) { return Math.round(v).toLocaleString(); } }; }
+  var nF = new Intl.NumberFormat();
+  var money = function (v) { return mC.format(v || 0); };
+  var moneyFull = function (v) { return mF.format(v || 0); };
+  var int = function (v) { return nF.format(Math.round(v || 0)); };
+  var pct = function (v) { return v == null || isNaN(v) ? "—" : Math.round(v * 100) + "%"; };
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  document.getElementById("fMinLabel").textContent = "Baseline ≥ " + money(RULES.minBaselineForRollup) + " only";
+
+  // ---------- state, mirrored into the URL hash so a view can be shared ----------
+  var state = { region: "all", snap: snaps[snaps.length - 1].id, quarter: "all", type: "all", owner: "all", esp: false, min: false, mode: "exclusive", tab: "consumption" };
+  var BOOL = { esp: 1, min: 1 };
+  function readHash() {
+    try {
+      var p = new URLSearchParams(location.hash.replace(/^#/, ""));
+      Object.keys(state).forEach(function (k) {
+        var v = p.get(k);
+        if (v == null) return;
+        state[k] = BOOL[k] ? v === "1" : v;
+      });
+      if (snapIdx[state.snap] == null) state.snap = snaps[snaps.length - 1].id;
+      if (!CAT[state.tab]) state.tab = "consumption";
+    } catch (e) { /* sandboxed: keep defaults */ }
+  }
+  function hashString() {
+    return Object.keys(state).map(function (k) { return k + "=" + encodeURIComponent(BOOL[k] ? (state[k] ? "1" : "0") : state[k]); }).join("&");
+  }
+  function writeHash() { try { history.replaceState(null, "", "#" + hashString()); } catch (e) { /* ignore */ } }
+
+  // ---------- scoping ----------
+  function inScope(r, ignoreQuarter) {
+    if (state.region !== "all" && r.region !== state.region) return false;
+    if (!ignoreQuarter && state.quarter !== "all" && r.quarter !== state.quarter) return false;
+    if (state.type !== "all" && r.type !== state.type) return false;
+    if (state.owner !== "all" && (r.owner || "(no owner)") !== state.owner) return false;
+    if (state.esp && !r.esp) return false;
+    if (state.min && r.baseline < RULES.minBaselineForRollup) return false;
+    return true;
+  }
+  function rowsFor(snapId, ignoreQuarter) { return (bySnap[snapId] || []).filter(function (r) { return inScope(r, ignoreQuarter); }); }
+  function scopeLabel() {
+    var parts = [state.region === "all" ? "All regions" : state.region];
+    if (state.quarter !== "all") parts.push(state.quarter + " renewals");
+    if (state.type !== "all") parts.push(state.type);
+    if (state.owner !== "all") parts.push(state.owner);
+    if (state.esp) parts.push("ESP only");
+    if (state.min) parts.push("≥ " + money(RULES.minBaselineForRollup));
+    return parts.join(" · ");
+  }
+  function summarise(rows) {
+    var a = { n: rows.length, base: 0, risk: 0, atRisk: 0, high: 0, consSum: 0, consN: 0, riskAccts: 0 };
+    rows.forEach(function (r) {
+      a.base += r.baseline; a.risk += r.riskAmt;
+      if (hm(r)) a.atRisk++;
+      if (r.risk === "High") a.high++;
+      if (r._cat !== "healthy") a.riskAccts++;
+      if (r.consumption != null) { a.consSum += r.consumption; a.consN++; }
+    });
+    a.cons = a.consN ? a.consSum / a.consN : null;
+    a.riskPct = a.base ? a.risk / a.base : 0;
+    return a;
+  }
+
+  // ---------- filters ----------
+  var el = function (id) { return document.getElementById(id); };
+  function fill(select, options, value) {
+    select.innerHTML = "";
+    options.forEach(function (o) {
+      var opt = document.createElement("option");
+      opt.value = o[0]; opt.textContent = o[1]; opt.selected = o[0] === value;
+      select.appendChild(opt);
+    });
+    if (!options.some(function (o) { return o[0] === value; })) select.value = options[0][0];
+    return select.value;
+  }
+  function fillFilters() {
+    var snapRows = bySnap[state.snap] || [];
+    state.region = fill(el("fRegion"), [["all", "All regions"]].concat(REGIONS.map(function (r) { return [r, r]; })), state.region);
+    state.snap = fill(el("fSnap"), snaps.slice().reverse().map(function (s, i) { return [s.id, s.label + (i === 0 ? " (latest)" : "")]; }), state.snap);
+    state.quarter = fill(el("fQuarter"), [["all", "All quarters"]].concat(uniq(snapRows.map(function (r) { return r.quarter; })).map(function (q) { return [q, q]; })), state.quarter);
+    state.type = fill(el("fType"), [["all", "SaaS and Software"], ["SaaS", "SaaS"], ["Software", "Software"]], state.type);
+    var owners = uniq(snapRows.filter(function (r) { return state.region === "all" || r.region === state.region; }).map(function (r) { return r.owner || "(no owner)"; }));
+    state.owner = fill(el("fOwner"), [["all", "All owners"]].concat(owners.map(function (o) { return [o, o]; })), state.owner);
+    el("fEsp").checked = state.esp; el("fMin").checked = state.min; el("fMode").value = state.mode;
+  }
+  [["fRegion", "region"], ["fSnap", "snap"], ["fQuarter", "quarter"], ["fType", "type"], ["fOwner", "owner"], ["fMode", "mode"]].forEach(function (p) {
+    el(p[0]).addEventListener("change", function () { state[p[1]] = el(p[0]).value; if (p[1] === "region") state.owner = "all"; update(); });
+  });
+  el("fEsp").addEventListener("change", function () { state.esp = el("fEsp").checked; update(); });
+  el("fMin").addEventListener("change", function () { state.min = el("fMin").checked; update(); });
+  el("btnPrint").addEventListener("click", function () { window.print(); });
+  el("btnLink").addEventListener("click", function () {
+    var url; try { url = location.href.split("#")[0] + "#" + hashString(); } catch (e) { url = "#" + hashString(); }
+    function done(m) { el("copied").textContent = m; setTimeout(function () { el("copied").textContent = ""; }, 2500); }
+    try { navigator.clipboard.writeText(url).then(function () { done("Copied"); }, function () { window.prompt("Copy this link:", url); }); }
+    catch (e) { window.prompt("Copy this link:", url); }
+  });
+
+  // ---------- tooltip + svg helpers ----------
+  var tip = el("tip");
+  function showTip(title, pairs, evt) {
+    tip.innerHTML = "<b>" + esc(title) + "</b>" + pairs.map(function (p) { return '<div class="row"><span class="k">' + esc(p[0]) + "</span><span>" + esc(p[1]) + "</span></div>"; }).join("");
+    tip.style.display = "block";
+    var w = tip.offsetWidth, h = tip.offsetHeight, x = evt.pageX + 14, y = evt.pageY - h - 14;
+    if (x > window.scrollX + document.documentElement.clientWidth - w - 8) x = evt.pageX - w - 14;
+    if (y < window.scrollY + 8) y = evt.pageY + 14;
+    tip.style.left = Math.max(8, x) + "px"; tip.style.top = y + "px";
+  }
+  function hideTip() { tip.style.display = "none"; }
+  var NS = "http://www.w3.org/2000/svg";
+  function s(tag, attrs, parent) { var n = document.createElementNS(NS, tag); for (var k in attrs) n.setAttribute(k, attrs[k]); if (parent) parent.appendChild(n); return n; }
+  function text(parent, x, y, str, attrs) { var t = s("text", Object.assign({ x: x, y: y, fill: "var(--muted)", "font-size": 11 }, attrs || {}), parent); t.textContent = str; return t; }
+  function niceMax(v) {
+    if (v <= 0) return 1;
+    var p = Math.pow(10, Math.floor(Math.log10(v))), n = v / p, steps = [1, 1.2, 1.6, 2, 2.4, 3, 4, 5, 6, 8, 10];
+    for (var i = 0; i < steps.length; i++) if (n <= steps[i]) return steps[i] * p;
+    return 10 * p;
+  }
+  function hbar(x, y, w, h, round) {
+    if (w <= 0) return "";
+    var r = round ? Math.min(4, w / 2, h / 2) : 0;
+    return "M" + x + "," + y + "H" + (x + w - r) + (r ? "Q" + (x + w) + "," + y + " " + (x + w) + "," + (y + r) : "") + "V" + (y + h - r) +
+      (r ? "Q" + (x + w) + "," + (y + h) + " " + (x + w - r) + "," + (y + h) : "") + "H" + x + "Z";
+  }
+  function widthOf(node) { return Math.max(280, Math.floor(node.clientWidth || 480)); }
+  function hover(target, mark, title, pairs) {
+    target.addEventListener("mousemove", function (e) { if (mark) mark.setAttribute("opacity", "0.85"); showTip(title, pairs, e); });
+    target.addEventListener("mouseleave", function () { if (mark) mark.removeAttribute("opacity"); hideTip(); });
+  }
+  function simpleTable(head, rows, nums) {
+    nums = nums || [];
+    var c = function (i) { return nums.indexOf(i) >= 0 ? ' class="num"' : ""; };
+    return "<table><thead><tr>" + head.map(function (h, i) { return "<th" + c(i) + ">" + esc(h) + "</th>"; }).join("") + "</tr></thead><tbody>" +
+      rows.map(function (r) { return "<tr>" + r.map(function (v, i) { return "<td" + c(i) + ">" + esc(v) + "</td>"; }).join("") + "</tr>"; }).join("") + "</tbody></table>";
+  }
+  function riskBadge(level) {
+    var l = RISK_LEVEL[level];
+    return l ? '<span class="badge"><span class="dot" style="background:' + l.color + '"></span>' + l.icon + " " + esc(level) + "</span>" : '<span class="badge" style="color:var(--muted)">—</span>';
+  }
+  function delta(now, before, upIsGood, f) {
+    if (before == null) return '<div class="delta">First snapshot: nothing to compare</div>';
+    var d = now - before;
+    if (Math.abs(d) < 1e-6 || f(Math.abs(d)) === f(0)) return '<div class="delta">No change since last snapshot</div>';
+    var good = upIsGood ? d > 0 : d < 0;
+    return '<div class="delta"><span class="' + (good ? "good" : "bad") + '">' + (d > 0 ? "▲ +" : "▼ −") + f(Math.abs(d)) + "</span> since last snapshot</div>";
+  }
+
+  // ---------- summary tiles + commentary ----------
+  function renderKpis(a, p) {
+    var tiles = [
+      { hero: 1, label: "Total risk $", value: money(a.risk), of: pct(a.riskPct) + " of " + money(a.base) + " baseline", d: delta(a.risk, p && p.risk, false, money) },
+      { label: "Accounts at risk (High / Medium)", value: int(a.atRisk), of: "of " + int(a.n), d: delta(a.atRisk, p && p.atRisk, false, int) },
+      { label: "High-risk accounts", value: int(a.high), of: "", d: delta(a.high, p && p.high, false, int) },
+      { label: "Average consumption", value: pct(a.cons), of: a.consN < a.n ? int(a.n - a.consN) + " blank" : "", d: delta(a.cons || 0, p && p.cons, true, function (v) { return Math.round(v * 100) + " pts"; }) },
+      { label: "ARR baseline renewing", value: money(a.base), of: int(a.n) + " accounts", d: delta(a.base, p && p.base, true, money) }
+    ];
+    el("kpis").innerHTML = tiles.map(function (t) {
+      return '<div class="tile' + (t.hero ? " hero" : "") + '"><div class="label">' + esc(t.label) + '</div><div class="value">' + esc(t.value) +
+        ' <span class="of">' + esc(t.of) + "</span></div>" + t.d + "</div>";
+    }).join("");
+  }
+  function renderCommentary(rows, a) {
+    var out = [];
+    if (!rows.length) { el("commentary").innerHTML = "<li>No accounts match this selection.</li>"; return; }
+    var byQ = {};
+    rows.forEach(function (r) { var q = byQ[r.quarter] = byQ[r.quarter] || { risk: 0, n: 0 }; q.risk += r.riskAmt; if (r.riskAmt > 0) q.n++; });
+    var qs = Object.keys(byQ).sort(function (x, y) { return byQ[y].risk - byQ[x].risk; });
+    if (qs.length && byQ[qs[0]].risk > 0) out.push("Largest risk exposure is in <b>" + esc(qs[0]) + "</b>: " + money(byQ[qs[0]].risk) + " across " + int(byQ[qs[0]].n) + " accounts.");
+    var cats = RISK_CATS.map(function (c) {
+      var m = rows.filter(function (r) { return r._cat === c.id; });
+      return { c: c, n: m.length, risk: m.reduce(function (t, r) { return t + r.riskAmt; }, 0), base: m.reduce(function (t, r) { return t + r.baseline; }, 0) };
+    }).sort(function (x, y) { return y.risk - x.risk; });
+    if (cats[0].risk > 0) out.push("<b>" + esc(cats[0].c.label) + "</b> is the biggest category: " + money(cats[0].risk) + " risk $ (" + pct(a.risk ? cats[0].risk / a.risk : 0) + " of the total) across " + int(cats[0].n) + " accounts.");
+    var cc = cats.filter(function (x) { return x.c.id === "consumption"; })[0];
+    out.push(int(cc.n) + " accounts are under " + pct(RULES.consumptionThreshold) + " consumption, with " + money(cc.base) + " of baseline renewing.");
+    var top = rows.slice().sort(function (x, y) { return y.riskAmt - x.riskAmt; }).slice(0, 3);
+    var topSum = top.reduce(function (t, r) { return t + r.riskAmt; }, 0);
+    if (topSum > 0) out.push("The top 3 accounts (" + top.map(function (r) { return esc(r.account); }).join(", ") + ") make up " + pct(topSum / a.risk) + " of risk $.");
+    var churn = rows.filter(function (r) { return r.riskStatus === "Churn"; });
+    if (churn.length) out.push(int(churn.length) + " account" + (churn.length > 1 ? "s are" : " is") + " marked as Churn (" + money(churn.reduce(function (t, r) { return t + r.baseline; }, 0)) + " baseline).");
+    el("commentary").innerHTML = out.map(function (t) { return "<li>" + t + "</li>"; }).join("");
+  }
+
+  // ---------- risk $ by quarter, stacked by category ----------
+  function renderQuarterChart(rows) {
+    var host = el("qChart"); host.innerHTML = "";
+    el("qLegend").innerHTML = RISK_CATS.map(function (c) { return '<li><span class="sw" style="background:' + c.color + '"></span>' + esc(c.label) + "</li>"; }).join("");
+    var qs = uniq(rows.map(function (r) { return r.quarter; }));
+    var data = qs.map(function (q) {
+      var g = { q: q, total: 0 };
+      RISK_CATS.forEach(function (c) { g[c.id] = 0; });
+      rows.forEach(function (r) { if (r.quarter === q && r._cat !== "healthy") { g[r._cat] += r.riskAmt; g.total += r.riskAmt; } });
+      return g;
+    });
+    if (!data.length) { host.innerHTML = '<div class="empty">No accounts in this selection</div>'; return; }
+    var W = widthOf(host), rowH = 40, bar = 22, lw = 72, vw = 64, iw = W - lw - vw, H = data.length * rowH + 4;
+    var max = Math.max.apply(null, data.map(function (d) { return d.total; })) || 1;
+    var svg = s("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": "Risk dollars by renewal quarter and category" }, host);
+    s("line", { x1: lw, x2: lw, y1: 0, y2: H, stroke: "var(--axis)" }, svg);
+    data.forEach(function (d, i) {
+      var y0 = i * rowH + (rowH - bar) / 2, x = lw;
+      text(svg, lw - 10, y0 + bar / 2 + 4, d.q, { "text-anchor": "end", fill: "var(--ink-2)", "font-size": 12 });
+      var segs = RISK_CATS.filter(function (c) { return d[c.id] > 0; });
+      segs.forEach(function (c, si) {
+        var w = (d[c.id] / max) * iw, last = si === segs.length - 1;
+        var p = s("path", { d: hbar(x, y0, last ? w : Math.max(0, w - 2), bar, last), fill: c.color }, svg);
+        var hit = s("rect", { x: x, y: i * rowH, width: Math.max(w, 4), height: rowH, fill: "transparent" }, svg);
+        hover(hit, p, d.q + " · " + c.label, [["Risk $", moneyFull(d[c.id])], ["Share of quarter", pct(d[c.id] / d.total)]]);
+        x += w;
+      });
+      text(svg, x + 8, y0 + bar / 2 + 4, money(d.total), { fill: "var(--ink-2)", "font-size": 12 });
+    });
+  }
+
+  // ---------- risk $ by reason ----------
+  function renderReasons(rows) {
+    var host = el("reasonChart"); host.innerHTML = "";
+    var m = {}, list = [];
+    rows.forEach(function (r) {
+      if (!(r.riskAmt > 0)) return;
+      var k = r.riskReason || "(no reason given)";
+      if (!m[k]) { m[k] = { k: k, risk: 0, n: 0 }; list.push(m[k]); }
+      m[k].risk += r.riskAmt; m[k].n++;
+    });
+    list.sort(function (a, b) { return b.risk - a.risk; });
+    if (!list.length) { host.innerHTML = '<div class="empty">No risk $ in this selection</div>'; el("reasonTable").innerHTML = ""; return; }
+    var W = widthOf(host), rowH = 32, bar = 18, lw = Math.min(180, W * 0.4), vw = 64, iw = W - lw - vw, H = list.length * rowH + 4;
+    var svg = s("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": "Risk dollars by risk reason" }, host);
+    s("line", { x1: lw, x2: lw, y1: 0, y2: H, stroke: "var(--axis)" }, svg);
+    list.forEach(function (d, i) {
+      var y0 = i * rowH + (rowH - bar) / 2, w = (d.risk / list[0].risk) * iw;
+      text(svg, lw - 10, y0 + bar / 2 + 4, d.k, { "text-anchor": "end", fill: "var(--ink-2)", "font-size": 12 });
+      var p = s("path", { d: hbar(lw, y0, Math.max(w, 2), bar, true), fill: "var(--accent)" }, svg);
+      text(svg, lw + w + 8, y0 + bar / 2 + 4, money(d.risk), { fill: "var(--ink-2)", "font-size": 12 });
+      hover(s("rect", { x: 0, y: i * rowH, width: W, height: rowH, fill: "transparent" }, svg), p, d.k, [["Risk $", moneyFull(d.risk)], ["Accounts", int(d.n)]]);
+    });
+    el("reasonTable").innerHTML = simpleTable(["Risk reason", "Risk $", "Accounts"], list.map(function (d) { return [d.k, moneyFull(d.risk), int(d.n)]; }), [1, 2]);
+  }
+
+  // ---------- quarterly rollup table (MATIK QUARTERLY_RISK_ROLLUP) ----------
+  function renderRollup(rows) {
+    var qs = uniq(rows.map(function (r) { return r.quarter; }));
+    el("rollupHint").textContent = "Accounts, ARR baseline and risk $ by category and renewal quarter · " + scopeLabel();
+    if (!qs.length) { el("rollup").innerHTML = '<tbody><tr><td class="empty">No accounts in this selection</td></tr></tbody>'; return; }
+    function cell(list) {
+      var n = list.length, b = 0, r = 0;
+      list.forEach(function (x) { b += x.baseline; r += x.riskAmt; });
+      return n ? int(n) + " · " + money(b) + " · <b>" + money(r) + "</b>" : '<span style="color:var(--muted)">—</span>';
+    }
+    var head = "<thead><tr><th>Category</th>" + qs.map(function (q) { return '<th class="num">' + esc(q) + "</th>"; }).join("") + '<th class="num">Total</th></tr></thead>';
+    var body = CATS.map(function (c) {
+      var inCat = rows.filter(function (r) { return r._cat === c.id; });
+      return '<tr><td><span class="sw" style="background:' + c.color + '"></span>' + esc(c.label) + "</td>" +
+        qs.map(function (q) { return '<td class="num">' + cell(inCat.filter(function (r) { return r.quarter === q; })) + "</td>"; }).join("") +
+        '<td class="num">' + cell(inCat) + "</td></tr>";
+    }).join("");
+    var total = '<tr class="total"><td>Total</td>' + qs.map(function (q) { return '<td class="num">' + cell(rows.filter(function (r) { return r.quarter === q; })) + "</td>"; }).join("") +
+      '<td class="num">' + cell(rows) + "</td></tr>";
+    el("rollup").innerHTML = head + "<tbody>" + body + total + '</tbody><tfoot><tr><td colspan="' + (qs.length + 2) + '" class="hint" style="border:0;padding-top:8px">Each cell: accounts · ARR baseline · <b>risk $</b></td></tr></tfoot>';
+  }
+
+  // ---------- trend across snapshots ----------
+  function renderTrend() {
+    var host = el("trend"); host.innerHTML = "";
+    var series = snaps.map(function (sn) { var a = summarise(rowsFor(sn.id)); return { sn: sn, v: a.risk, n: a.atRisk }; });
+    var W = widthOf(host), H = 220, m = { l: 58, r: 22, t: 18, b: 28 }, iw = W - m.l - m.r, ih = H - m.t - m.b;
+    var max = niceMax(Math.max.apply(null, series.map(function (d) { return d.v; })) * 1.08);
+    var x = function (i) { return m.l + (series.length < 2 ? iw / 2 : (i * iw) / (series.length - 1)); };
+    var y = function (v) { return m.t + ih - (v / max) * ih; };
+    var svg = s("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": "Total risk dollars by snapshot" }, host);
+    for (var t = 0; t <= 4; t++) {
+      var yy = y((max * t) / 4);
+      s("line", { x1: m.l, x2: W - m.r, y1: yy, y2: yy, stroke: t ? "var(--grid)" : "var(--axis)" }, svg);
+      text(svg, m.l - 8, yy + 4, money((max * t) / 4), { "text-anchor": "end" });
+    }
+    var step = Math.ceil(series.length / Math.max(2, Math.floor(iw / 80)));
+    series.forEach(function (d, i) { if (i % step === 0 || i === series.length - 1) text(svg, x(i), H - 8, d.sn.label.replace(/ \d{4}$/, ""), { "text-anchor": "middle" }); });
+    var line = series.map(function (d, i) { return (i ? "L" : "M") + x(i) + "," + y(d.v); }).join("");
+    s("path", { d: line + "L" + x(series.length - 1) + "," + y(0) + "L" + x(0) + "," + y(0) + "Z", fill: "var(--accent-wash)" }, svg);
+    s("path", { d: line, fill: "none", stroke: "var(--accent)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, svg);
+    var si = snapIdx[state.snap];
+    s("circle", { cx: x(si), cy: y(series[si].v), r: 5, fill: "var(--accent)", stroke: "var(--surface)", "stroke-width": 2 }, svg);
+    var lb = text(svg, x(si), y(series[si].v) - 12, money(series[si].v), { "text-anchor": si === 0 ? "start" : si === series.length - 1 ? "end" : "middle", fill: "var(--ink)", "font-size": 12, "font-weight": 600, "paint-order": "stroke", stroke: "var(--surface)", "stroke-width": 4 });
+    var cross = s("line", { y1: m.t, y2: m.t + ih, stroke: "var(--muted)", visibility: "hidden" }, svg);
+    var dot = s("circle", { r: 5, fill: "var(--accent)", stroke: "var(--surface)", "stroke-width": 2, visibility: "hidden" }, svg);
+    var hit = s("rect", { x: m.l - 12, y: 0, width: iw + 24, height: H, fill: "transparent", style: "cursor:pointer" }, svg);
+    function near(e) { var b = svg.getBoundingClientRect(), px = ((e.clientX - b.left) / b.width) * W; return Math.max(0, Math.min(series.length - 1, Math.round(((px - m.l) / iw) * (series.length - 1)))); }
+    hit.addEventListener("mousemove", function (e) {
+      var i = near(e), d = series[i];
+      cross.setAttribute("x1", x(i)); cross.setAttribute("x2", x(i)); cross.setAttribute("visibility", "visible");
+      dot.setAttribute("cx", x(i)); dot.setAttribute("cy", y(d.v)); dot.setAttribute("visibility", "visible");
+      showTip(d.sn.label, [["Total risk $", moneyFull(d.v)], ["Accounts at risk", int(d.n)]], e);
+    });
+    hit.addEventListener("mouseleave", function () { cross.setAttribute("visibility", "hidden"); dot.setAttribute("visibility", "hidden"); hideTip(); });
+    hit.addEventListener("click", function (e) { hideTip(); state.snap = series[near(e)].sn.id; update(); });
+    el("trendTable").innerHTML = simpleTable(["Snapshot", "Total risk $", "Accounts at risk"], series.map(function (d) { return [d.sn.label, moneyFull(d.v), int(d.n)]; }), [1, 2]);
+    el("trendHint").textContent = "One point per snapshot for " + scopeLabel() + ". Click a point to view that snapshot.";
+    void lb;
+  }
+
+  // ---------- movement since previous snapshot ----------
+  function renderMovement(rows, prevRows, prevSnap) {
+    var host = el("movement");
+    if (!prevSnap) { host.innerHTML = '<div class="empty">This is the first snapshot, so there is nothing to compare against.</div>'; el("moveHint").textContent = ""; return; }
+    el("moveHint").textContent = "Compared with " + prevSnap.label + " (accounts matched by name)";
+    var prev = {};
+    prevRows.forEach(function (r) { prev[r.account] = r; });
+    var now = {};
+    rows.forEach(function (r) { now[r.account] = r; });
+    var newRisk = [], cleared = [], up = [];
+    rows.forEach(function (r) {
+      var p = prev[r.account];
+      if (r._cat !== "healthy" && (!p || p._cat === "healthy")) newRisk.push(r);
+      if (p && r.riskAmt > p.riskAmt) up.push({ r: r, d: r.riskAmt - p.riskAmt });
+    });
+    prevRows.forEach(function (p) { var r = now[p.account]; if (p._cat !== "healthy" && r && r._cat === "healthy") cleared.push(r); });
+    var dropped = prevRows.filter(function (p) { return !now[p.account]; }).length;
+    newRisk.sort(function (a, b) { return b.riskAmt - a.riskAmt; });
+    up.sort(function (a, b) { return b.d - a.d; });
+    function list(title, items, f) {
+      return '<div class="table-scroll" style="margin-top:8px"><table><thead><tr><th>' + esc(title) + '</th><th>Category</th><th class="num">Risk $</th></tr></thead><tbody>' +
+        (items.length ? items.slice(0, 5).map(f).join("") : '<tr><td colspan="3" class="empty">None</td></tr>') + "</tbody></table></div>";
+    }
+    host.innerHTML = '<div class="kpis" style="grid-template-columns:repeat(3,1fr)">' +
+      '<div class="tile"><div class="label">Newly at risk</div><div class="value">' + int(newRisk.length) + "</div></div>" +
+      '<div class="tile"><div class="label">Cleared</div><div class="value">' + int(cleared.length) + "</div></div>" +
+      '<div class="tile"><div class="label">Left the window</div><div class="value">' + int(dropped) + '</div></div></div>' +
+      list("Newly at risk (largest first)", newRisk, function (r) { return "<tr><td>" + esc(r.account) + "</td><td>" + esc(CAT[r._cat].label) + '</td><td class="num">' + money(r.riskAmt) + "</td></tr>"; }) +
+      list("Biggest risk $ increases", up, function (u) { return "<tr><td>" + esc(u.r.account) + "</td><td>" + esc(CAT[u.r._cat].label) + '</td><td class="num">+' + money(u.d) + "</td></tr>"; });
+  }
+
+  // ---------- category tabs = slides ----------
+  var COLS = [
+    { k: "account", l: "Account" }, { k: "region", l: "Region" }, { k: "espTxt", l: "ESP" }, { k: "type", l: "Type" },
+    { k: "quarter", l: "Quarter" }, { k: "baseline", l: "Baseline (ARR)", num: 1 }, { k: "riskAmt", l: "Risk $", num: 1 },
+    { k: "riskReason", l: "Risk reason" }, { k: "riskSubReason", l: "Sub-reason" }, { k: "consumption", l: "Consumption", num: 1 },
+    { k: "phase", l: "Journey phase" }, { k: "riskRank", l: "Risk" }, { k: "riskStatus", l: "Status" }, { k: "owner", l: "Owner" }, { k: "actions", l: "Actions" }
+  ];
+  var sort = { k: "riskAmt", dir: -1 }, tabRows = [], showAll = false, TOP_N = 15;
+  function members(rows, c) { return rows.filter(function (r) { return state.mode === "exclusive" ? r._cat === c.id : c.overlap(r); }); }
+  function renderSlides(rows) {
+    var counts = {};
+    CATS.forEach(function (c) { counts[c.id] = members(rows, c); });
+    el("tabs").innerHTML = CATS.map(function (c) {
+      return '<button type="button" role="tab" class="tab" data-tab="' + c.id + '" aria-selected="' + (state.tab === c.id) + '"><span class="sw" style="background:' + c.color + ';margin:0"></span>' +
+        esc(c.label) + ' <span class="n">' + int(counts[c.id].length) + "</span></button>";
+    }).join("");
+
+    var notice = "";
+    if (state.mode === "overlap") {
+      var times = rows.map(function (r) { return CATS.filter(function (c) { return c.overlap(r); }).length; });
+      var dup = times.filter(function (t) { return t > 1; }).length, none = times.filter(function (t) { return t === 0; }).length;
+      notice = '<div class="notice">With the current workbook rules, <b>' + int(dup) + "</b> accounts appear on more than one slide and <b>" + int(none) +
+        "</b> appear on none, so the slide totals don't add up to the " + int(rows.length) + " accounts in scope.</div>";
+    }
+    el("modeNotice").innerHTML = notice;
+
+    var c = CAT[state.tab], list = counts[c.id], a = summarise(list);
+    el("slideKpis").innerHTML = [
+      [c.label + " accounts", int(a.n)], ["Baseline of accounts", money(a.base)], ["Average consumption", pct(a.cons)],
+      ["High-risk accounts", int(a.high)], [c.label + " risk $", money(a.risk)]
+    ].map(function (t) { return '<div class="tile"><div class="label">' + esc(t[0]) + '</div><div class="value">' + esc(t[1]) + "</div></div>"; }).join("");
+    el("slideRule").innerHTML = "<b>Rule for this slide:</b> " + esc(state.mode === "exclusive" ? (c.rank ? "not on an earlier tab, and " : "") + c.rule :
+      ({ consumption: "Consumption % under 50% (any reason)", technical: "Risk Reason = Product & Technical Risk", value: "Risk Reason = Value Realization Risk",
+        competitive: "Risk Reason = Competitive Risk", other: "Risk = High or Medium and not one of the three named reasons", healthy: "Risk = Low, consumption ≥ 50%, not Technical or Competitive" })[c.id]);
+
+    tabRows = list.map(function (r) {
+      return Object.assign({}, r, { espTxt: r.esp ? "Y" : "N", phase: (r.type === "SaaS" ? r.saasPhase : r.swPhase) || "Unknown", riskRank: ({ High: 3, Medium: 2, Low: 1 })[r.risk] || 0 });
+    });
+    renderSlideTable();
+  }
+  function renderSlideTable() {
+    var q = el("slideSearch").value.trim().toLowerCase();
+    var list = tabRows.filter(function (r) { return !q || [r.account, r.owner, r.riskReason, r.riskSubReason, r.region].join(" ").toLowerCase().indexOf(q) >= 0; });
+    list.sort(function (a, b) {
+      var x = a[sort.k], y = b[sort.k];
+      if (x == null) return 1; if (y == null) return -1;
+      return (typeof x === "number" ? x - y : String(x).localeCompare(String(y))) * sort.dir;
+    });
+    var total = list.length;
+    if (!showAll && !q) list = list.slice(0, TOP_N);
+    var cols = COLS.filter(function (c) { return c.k !== "region" || state.region === "all"; });
+    var head = "<thead><tr>" + cols.map(function (c) {
+      return '<th class="' + (c.num ? "num" : "") + '" aria-sort="' + (sort.k === c.k ? (sort.dir > 0 ? "ascending" : "descending") : "none") + '"><button type="button" data-k="' + c.k + '">' + esc(c.l) + "</button></th>";
+    }).join("") + "</tr></thead>";
+    var body = list.length ? list.map(function (r) {
+      return "<tr>" + cols.map(function (c) {
+        var v = r[c.k];
+        if (c.k === "baseline" || c.k === "riskAmt") return '<td class="num">' + moneyFull(v) + "</td>";
+        if (c.k === "consumption") return '<td class="num">' + pct(v) + "</td>";
+        if (c.k === "riskRank") return "<td>" + riskBadge(r.risk) + "</td>";
+        if (c.k === "actions") return '<td class="cell-wrap">' + esc(v || "") + "</td>";
+        return "<td>" + esc(v == null ? "—" : v) + "</td>";
+      }).join("") + "</tr>";
+    }).join("") : '<tr><td colspan="' + cols.length + '" class="empty">No accounts on this slide</td></tr>';
+    var more = total > list.length ? '<tr><td colspan="' + cols.length + '" style="text-align:center;padding:10px"><button type="button" id="showAll">Show all ' + int(total) + " accounts</button></td></tr>" :
+      (showAll && total > TOP_N ? '<tr><td colspan="' + cols.length + '" style="text-align:center;padding:10px"><button type="button" id="showAll">Show top ' + TOP_N + " only</button></td></tr>" : "");
+    el("slideTable").innerHTML = head + "<tbody>" + body + more + "</tbody>";
+    el("slideCount").textContent = "Showing " + list.length + " of " + tabRows.length + " accounts · " + scopeLabel();
+  }
+  el("tabs").addEventListener("click", function (e) { var b = e.target.closest("[data-tab]"); if (b) { state.tab = b.getAttribute("data-tab"); update(); } });
+  el("slideTable").addEventListener("click", function (e) {
+    if (e.target.id === "showAll") { showAll = !showAll; renderSlideTable(); return; }
+    var b = e.target.closest("button[data-k]"); if (!b) return;
+    var k = b.getAttribute("data-k"), num = COLS.filter(function (c) { return c.k === k; })[0].num || k === "riskRank";
+    sort = sort.k === k ? { k: k, dir: -sort.dir } : { k: k, dir: num ? -1 : 1 };
+    renderSlideTable();
+  });
+  el("slideSearch").addEventListener("input", renderSlideTable);
+
+  // ---------- data checks ----------
+  function renderChecks(rows) {
+    function names(list) { return list.slice(0, 4).map(function (r) { return r.account; }).join(", ") + (list.length > 4 ? " and " + (list.length - 4) + " more" : ""); }
+    var checks = [
+      ["Risk $ recorded but no Risk Reason", rows.filter(function (r) { return r.riskAmt > 0 && !r.riskReason; }), "These count in the totals but can't be placed on a reason slide."],
+      ["Consumption % is blank", rows.filter(function (r) { return r.consumption == null; }), RULES.blankConsumptionIsZero ? "Treated as 0%, so they land on the Consumption slide." : "Excluded from consumption checks."],
+      ["No Risk level (High / Medium / Low)", rows.filter(function (r) { return !r.risk; }), "Can't be counted as at-risk or healthy."],
+      ["No CS owner", rows.filter(function (r) { return !r.owner; }), "Nobody to assign actions to."],
+      ["Same account listed twice", rows.filter(function (r, i) { return rows.findIndex(function (x) { return x.account === r.account && x.quarter === r.quarter; }) !== i; }), "Double-counts baseline and risk $."]
+    ];
+    var warn = (DATA.warnings && Object.keys(DATA.warnings).length) ? Object.keys(DATA.warnings).map(function (k) { return DATA.warnings[k].map(function (w) { return "<li><span class='st'>Note</span><span>" + esc(k) + ": " + esc(w) + "</span></li>"; }).join(""); }).join("") : "";
+    el("checks").innerHTML = checks.map(function (c) {
+      var ok = !c[1].length;
+      return "<li><span class='st " + (ok ? "good" : "bad") + "'>" + (ok ? "✓ OK" : "▲ " + int(c[1].length)) + "</span><span>" + esc(c[0]) +
+        (ok ? "" : '<br><span class="who">' + esc(c[2]) + " " + esc(names(c[1])) + "</span>") + "</span></li>";
+    }).join("") + warn;
+  }
+
+  // ---------- main ----------
+  function update() {
+    fillFilters();
+    writeHash();
+    var sn = snaps[snapIdx[state.snap]], prevSnap = snaps[snapIdx[state.snap] - 1];
+    var rows = rowsFor(state.snap), prevRows = prevSnap ? rowsFor(prevSnap.id) : [];
+    var a = summarise(rows);
+    el("subtitle").textContent = scopeLabel() + " · snapshot " + sn.label;
+    renderKpis(a, prevSnap ? summarise(prevRows) : null);
+    renderCommentary(rows, a);
+    renderQuarterChart(rows);
+    renderReasons(rows);
+    renderRollup(rows);
+    renderTrend();
+    renderMovement(rows, prevRows, prevSnap);
+    renderSlides(rows);
+    renderChecks(rows);
+  }
+
+  document.title = META.title || document.title;
+  el("title").textContent = META.title || "Customer Risk Review";
+  if (META.note) el("flag").innerHTML = '<span class="pill">' + esc(META.note) + "</span>";
+  el("footSource").textContent = "Sources: " + (META.sources || []).join(" → ");
+  el("footGen").textContent = META.generatedAt ? "Page built " + META.generatedAt : "";
+  readHash();
+  update();
+  window.addEventListener("hashchange", function () { readHash(); update(); });
+  var lastW = document.documentElement.clientWidth, timer;
+  window.addEventListener("resize", function () {
+    clearTimeout(timer);
+    timer = setTimeout(function () { var w = document.documentElement.clientWidth; if (w !== lastW) { lastW = w; update(); } }, 150);
+  });
+})();
+</script>
+</body>
+</html>
