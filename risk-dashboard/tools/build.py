@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """Build the CRS risk dashboard: Matik workbook -> JSON history -> one HTML file.
 
-  # 1. Add a snapshot from a Matik workbook (reads the raw SourceData sheet)
-  python tools/build.py add CRS_Sheet.xlsx --region EMEA --snapshot 2026-10-09
+  # 1. Add a snapshot from the Matik dump (reads the raw SourceData sheet, which
+  #    should carry Sales Entity and Sales Region columns for every row)
+  python tools/build.py add CRS_Dump.xlsx --snapshot 2026-10-09
+
+  #    Older single-region workbooks without those columns:
+  python tools/build.py add CRS_Sheet.xlsx --region "Europe North" --entity EMEA
 
   # 2. Rebuild the page from everything collected so far
   python tools/build.py html
@@ -10,7 +14,7 @@
   # Sample data (fictional) for testing the page
   python tools/build.py sample && python tools/build.py html --data data/sample-data.json
 
-Snapshots accumulate in data/history.json (one entry per region per run), which
+Snapshots accumulate in data/history.json (re-adding a snapshot replaces it), which
 is what powers the Snapshot switch on the page. The page applies all the slide
 logic itself, so the formula sheets in the workbook (CRS Pull, MATIK, Rollup,
 Consumption, ...) are not read.
@@ -31,9 +35,11 @@ OUT = ROOT / "risk-dashboard.html"
 PLACEHOLDER = "__RISK_DATA__"
 
 # SourceData header -> JSON key. This is the contract between Matik and the page.
-# "Region" is not in today's SourceData; add it to the Matik pull, or pass --region.
+# Sales Entity / Sales Region are new columns in the Matik dump; --entity/--region
+# fill them in for older single-region workbooks.
 COLUMNS = {
-    "Region": "region",
+    "Sales Entity": "entity",
+    "Sales Region": "region",
     "Account": "account",
     "SFDC Account Id": "accountId",
     "ESP": "esp",
@@ -77,7 +83,7 @@ def clean(v):
     return v
 
 
-def read_source_data(path: Path, sheet: str, region: str | None):
+def read_source_data(path: Path, sheet: str, region: str | None, entity: str | None):
     import pandas as pd  # only needed for real workbooks
 
     df = pd.read_excel(path, sheet_name=sheet)
@@ -87,12 +93,15 @@ def read_source_data(path: Path, sheet: str, region: str | None):
         raise SystemExit(f"{sheet}: missing columns {missing}. Found: {list(df.columns)}")
     if "CS Owner Name" not in df.columns and "CS Owner" in df.columns:
         df["CS Owner Name"] = df["CS Owner"]
-    if "Region" not in df.columns:
-        if not region:
-            raise SystemExit("No Region column in the sheet: pass --region (e.g. --region EMEA)")
-        df["Region"] = region
-    elif region:
-        df["Region"] = df["Region"].fillna(region)
+    if "Sales Region" not in df.columns and "Region" in df.columns:
+        df["Sales Region"] = df["Region"]
+    for col, value, flag in (("Sales Region", region, "--region"), ("Sales Entity", entity, "--entity")):
+        if col not in df.columns:
+            if not value and col == "Sales Region":
+                raise SystemExit(f"No '{col}' column in the sheet: add it to the Matik pull, or pass {flag}")
+            df[col] = value
+        elif value:
+            df[col] = df[col].fillna(value)
 
     warnings, rows = [], []
     df = df.dropna(subset=["Account"])
@@ -137,7 +146,7 @@ def save(data, path: Path):
 
 
 def add_snapshot(args):
-    rows, warnings = read_source_data(args.workbook, args.sheet, args.region)
+    rows, warnings = read_source_data(args.workbook, args.sheet, args.region, args.entity)
     snap = args.snapshot or date.today().isoformat()
     data = load(args.data)
     regions = {r["region"] for r in rows}
@@ -170,11 +179,15 @@ def build_html(args):
 
 
 # ---------------------------------------------------------------- sample data
-REGION_OWNERS = {
-    "ANZ": ["Priya Raman", "Tom Whitfield", "Mia Chen", "Lachlan Burke"],
-    "EMEA": ["Sophie Laurent", "Jonas Becker", "Aoife Byrne", "Marco Bianchi", "Elif Kaya"],
-    "North America": ["Jordan Ellis", "Dana Brooks", "Sam Ortiz", "Riley Hart", "Casey Morgan"],
-    "Asia": ["Kenji Watanabe", "Wei Ling Tan", "Arjun Mehta"],
+REGION_OWNERS = {  # sales region -> (sales entity, CS owners); all fictional
+    "Europe North": ("EMEA", ["Sophie Laurent", "Jonas Becker", "Aoife Byrne"]),
+    "Europe East": ("EMEA", ["Marco Bianchi", "Elif Kaya"]),
+    "Europe South": ("EMEA", ["Lucía Ortega", "Paolo Greco"]),
+    "Service Provider": ("Partners", ["Jordan Ellis", "Nadia Petrova"]),
+    "Channel": ("Partners", ["Dana Brooks", "Sam Ortiz"]),
+    "North America": ("Americas", ["Riley Hart", "Casey Morgan", "Alex Kim"]),
+    "ANZ": ("APJ", ["Priya Raman", "Tom Whitfield", "Mia Chen"]),
+    "Asia": ("APJ", ["Kenji Watanabe", "Wei Ling Tan"]),
 }
 REASONS = [  # (reason, weight, sub-reasons)
     ("Low/No Risk", 52, ["Low/No Risk"]),
@@ -220,8 +233,8 @@ def make_sample(seed=11):
     snaps = [date(2026, 7, 31) + timedelta(days=14 * i) for i in range(6)]
     all_quarters = ["FY27-Q2", "FY27-Q3", "FY27-Q4", "FY28-Q1", "FY28-Q2"]
     used, accounts = set(), []
-    for region, owners in REGION_OWNERS.items():
-        for _ in range(rnd.randint(95, 135)):
+    for region, (entity, owners) in REGION_OWNERS.items():
+        for _ in range(rnd.randint(45, 75)):
             name = f"{rnd.choice(WORD_A)} {rnd.choice(WORD_B)}"
             if name in used:
                 name = f"{name} ({region})"
@@ -230,7 +243,7 @@ def make_sample(seed=11):
             used.add(name)
             typ = rnd.choice(["SaaS", "Software"])
             accounts.append({
-                "region": region, "account": name, "type": typ, "esp": rnd.random() < 0.13,
+                "entity": entity, "region": region, "account": name, "type": typ, "esp": rnd.random() < 0.13,
                 "quarter": rnd.choice(all_quarters), "owner": rnd.choice(owners) if rnd.random() > 0.05 else None,
                 "baseline": round(rnd.lognormvariate(12.4, 0.75), 2),
                 "consumption": min(1.0, max(0.0, rnd.betavariate(4, 1.6))) if rnd.random() > 0.06 else None,
@@ -260,7 +273,7 @@ def make_sample(seed=11):
             if reason is None and rnd.random() < 0.4:
                 pct = 0.25  # risk $ recorded but no reason: a data-quality case worth surfacing
             rows.append({
-                "snapshot": s.isoformat(), "region": a["region"], "account": a["account"], "esp": a["esp"],
+                "snapshot": s.isoformat(), "entity": a["entity"], "region": a["region"], "account": a["account"], "esp": a["esp"],
                 "type": a["type"], "quarter": a["quarter"], "baseline": a["baseline"],
                 "riskAmt": round(a["baseline"] * pct, 2), "riskReason": reason,
                 "riskStatus": None if reason is None else ("Churn" if risk == "High" and rnd.random() < 0.08 else a["status"]),
@@ -278,7 +291,8 @@ def main():
     a = sub.add_parser("add", help="add a snapshot from a Matik workbook")
     a.add_argument("workbook", type=Path)
     a.add_argument("--sheet", default="SourceData")
-    a.add_argument("--region", help="region for every row (if the sheet has no Region column)")
+    a.add_argument("--region", help="sales region for every row (if the sheet has no Sales Region column)")
+    a.add_argument("--entity", help="sales entity for every row (if the sheet has no Sales Entity column)")
     a.add_argument("--snapshot", help="snapshot date YYYY-MM-DD (default: today)")
     a.add_argument("--data", type=Path, default=HISTORY)
     h = sub.add_parser("html", help="build risk-dashboard.html")

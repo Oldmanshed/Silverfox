@@ -148,10 +148,11 @@
     <div id="flag"></div>
   </header>
 
-  <noscript><div class="noscript"><strong>Scripts are blocked on this page.</strong> The region, quarter and snapshot switches need JavaScript. If you see this inside SharePoint, the HTML page settings are blocking scripts.</div></noscript>
+  <noscript><div class="noscript"><strong>Scripts are blocked on this page.</strong> The sales entity, region, quarter and snapshot switches need JavaScript. If you see this inside SharePoint, the HTML page settings are blocking scripts.</div></noscript>
 
   <form class="filters" onsubmit="return false" aria-label="Filters">
-    <label class="f">Region <select id="fRegion"></select></label>
+    <label class="f" id="fEntityWrap">Sales entity <select id="fEntity"></select></label>
+    <label class="f">Sales region <select id="fRegion"></select></label>
     <label class="f">Snapshot <select id="fSnap"></select></label>
     <label class="f">Renewal quarter <select id="fQuarter"></select></label>
     <label class="f">Type <select id="fType"></select></label>
@@ -173,6 +174,14 @@
   <section class="card">
     <h2>Summary</h2>
     <ul class="commentary" id="commentary"></ul>
+  </section>
+
+  <section class="card">
+    <h2 id="bdTitle">Risk $ by sales region</h2>
+    <p class="hint" id="bdHint">Split by risk category (each account counted once). Click a name to drill in.</p>
+    <ul class="legend" id="bdLegend"></ul>
+    <div class="chart" id="bdChart"></div>
+    <details class="data"><summary>Show data</summary><div id="bdTable"></div></details>
   </section>
 
   <div class="grid2" style="margin-top:12px">
@@ -292,7 +301,11 @@
   var bySnap = {};
   DATA.rows.forEach(function (r) { (bySnap[r.snapshot] = bySnap[r.snapshot] || []).push(r); r._cat = category(r); });
   function uniq(list) { return list.filter(function (v, i, a) { return v != null && a.indexOf(v) === i; }).sort(); }
+  var ENTITIES = uniq(DATA.rows.map(function (r) { return r.entity; }));
   var REGIONS = uniq(DATA.rows.map(function (r) { return r.region; }));
+  var ENTITY_OF = {};
+  DATA.rows.forEach(function (r) { if (r.region && r.entity) ENTITY_OF[r.region] = r.entity; });
+  function regionsIn(entity) { return REGIONS.filter(function (g) { return entity === "all" || ENTITY_OF[g] === entity; }); }
 
   // ---------- formatting ----------
   var cur = META.currency || "USD", mC, mF;
@@ -309,7 +322,7 @@
   document.getElementById("fMinLabel").textContent = "Baseline ≥ " + money(RULES.minBaselineForRollup) + " only";
 
   // ---------- state, mirrored into the URL hash so a view can be shared ----------
-  var state = { region: "all", snap: snaps[snaps.length - 1].id, quarter: "all", type: "all", owner: "all", esp: false, min: false, mode: "exclusive", tab: "consumption" };
+  var state = { entity: "all", region: "all", snap: snaps[snaps.length - 1].id, quarter: "all", type: "all", owner: "all", esp: false, min: false, mode: "exclusive", tab: "consumption" };
   var BOOL = { esp: 1, min: 1 };
   function readHash() {
     try {
@@ -320,6 +333,7 @@
         state[k] = BOOL[k] ? v === "1" : v;
       });
       if (snapIdx[state.snap] == null) state.snap = snaps[snaps.length - 1].id;
+      if (state.region !== "all" && ENTITY_OF[state.region]) state.entity = ENTITY_OF[state.region];
       if (!CAT[state.tab]) state.tab = "consumption";
     } catch (e) { /* sandboxed: keep defaults */ }
   }
@@ -330,6 +344,7 @@
 
   // ---------- scoping ----------
   function inScope(r, ignoreQuarter) {
+    if (state.entity !== "all" && r.entity !== state.entity) return false;
     if (state.region !== "all" && r.region !== state.region) return false;
     if (!ignoreQuarter && state.quarter !== "all" && r.quarter !== state.quarter) return false;
     if (state.type !== "all" && r.type !== state.type) return false;
@@ -340,7 +355,7 @@
   }
   function rowsFor(snapId, ignoreQuarter) { return (bySnap[snapId] || []).filter(function (r) { return inScope(r, ignoreQuarter); }); }
   function scopeLabel() {
-    var parts = [state.region === "all" ? "All regions" : state.region];
+    var parts = [state.region !== "all" ? state.region : state.entity !== "all" ? state.entity + " (all regions)" : "All sales regions"];
     if (state.quarter !== "all") parts.push(state.quarter + " renewals");
     if (state.type !== "all") parts.push(state.type);
     if (state.owner !== "all") parts.push(state.owner);
@@ -376,16 +391,23 @@
   }
   function fillFilters() {
     var snapRows = bySnap[state.snap] || [];
-    state.region = fill(el("fRegion"), [["all", "All regions"]].concat(REGIONS.map(function (r) { return [r, r]; })), state.region);
+    el("fEntityWrap").style.display = ENTITIES.length ? "" : "none";
+    state.entity = fill(el("fEntity"), [["all", "All entities"]].concat(ENTITIES.map(function (e) { return [e, e]; })), state.entity);
+    state.region = fill(el("fRegion"), [["all", state.entity === "all" ? "All regions" : "All regions in " + state.entity]].concat(regionsIn(state.entity).map(function (r) { return [r, r]; })), state.region);
     state.snap = fill(el("fSnap"), snaps.slice().reverse().map(function (s, i) { return [s.id, s.label + (i === 0 ? " (latest)" : "")]; }), state.snap);
     state.quarter = fill(el("fQuarter"), [["all", "All quarters"]].concat(uniq(snapRows.map(function (r) { return r.quarter; })).map(function (q) { return [q, q]; })), state.quarter);
     state.type = fill(el("fType"), [["all", "SaaS and Software"], ["SaaS", "SaaS"], ["Software", "Software"]], state.type);
-    var owners = uniq(snapRows.filter(function (r) { return state.region === "all" || r.region === state.region; }).map(function (r) { return r.owner || "(no owner)"; }));
+    var owners = uniq(snapRows.filter(function (r) { return (state.entity === "all" || r.entity === state.entity) && (state.region === "all" || r.region === state.region); }).map(function (r) { return r.owner || "(no owner)"; }));
     state.owner = fill(el("fOwner"), [["all", "All owners"]].concat(owners.map(function (o) { return [o, o]; })), state.owner);
     el("fEsp").checked = state.esp; el("fMin").checked = state.min; el("fMode").value = state.mode;
   }
-  [["fRegion", "region"], ["fSnap", "snap"], ["fQuarter", "quarter"], ["fType", "type"], ["fOwner", "owner"], ["fMode", "mode"]].forEach(function (p) {
-    el(p[0]).addEventListener("change", function () { state[p[1]] = el(p[0]).value; if (p[1] === "region") state.owner = "all"; update(); });
+  [["fEntity", "entity"], ["fRegion", "region"], ["fSnap", "snap"], ["fQuarter", "quarter"], ["fType", "type"], ["fOwner", "owner"], ["fMode", "mode"]].forEach(function (p) {
+    el(p[0]).addEventListener("change", function () {
+      state[p[1]] = el(p[0]).value;
+      if (p[1] === "entity") { state.region = "all"; state.owner = "all"; }
+      if (p[1] === "region") { state.owner = "all"; if (state.region !== "all" && ENTITY_OF[state.region]) state.entity = ENTITY_OF[state.region]; }
+      update();
+    });
   });
   el("fEsp").addEventListener("change", function () { state.esp = el("fEsp").checked; update(); });
   el("fMin").addEventListener("change", function () { state.min = el("fMin").checked; update(); });
@@ -482,35 +504,64 @@
     el("commentary").innerHTML = out.map(function (t) { return "<li>" + t + "</li>"; }).join("");
   }
 
-  // ---------- risk $ by quarter, stacked by category ----------
-  function renderQuarterChart(rows) {
-    var host = el("qChart"); host.innerHTML = "";
-    el("qLegend").innerHTML = RISK_CATS.map(function (c) { return '<li><span class="sw" style="background:' + c.color + '"></span>' + esc(c.label) + "</li>"; }).join("");
-    var qs = uniq(rows.map(function (r) { return r.quarter; }));
-    var data = qs.map(function (q) {
-      var g = { q: q, total: 0 };
-      RISK_CATS.forEach(function (c) { g[c.id] = 0; });
-      rows.forEach(function (r) { if (r.quarter === q && r._cat !== "healthy") { g[r._cat] += r.riskAmt; g.total += r.riskAmt; } });
-      return g;
+  // ---------- stacked risk $ bars (one row per group, split by category) ----------
+  function renderStacked(hostId, rows, keyOf, opts) {
+    var host = el(hostId); host.innerHTML = "";
+    var m = {}, data = [];
+    rows.forEach(function (r) {
+      var k = keyOf(r) || "(blank)";
+      if (!m[k]) { m[k] = { k: k, total: 0, n: 0, base: 0 }; RISK_CATS.forEach(function (c) { m[k][c.id] = 0; }); data.push(m[k]); }
+      m[k].n++; m[k].base += r.baseline;
+      if (r._cat !== "healthy") { m[k][r._cat] += r.riskAmt; m[k].total += r.riskAmt; }
     });
-    if (!data.length) { host.innerHTML = '<div class="empty">No accounts in this selection</div>'; return; }
-    var W = widthOf(host), rowH = 40, bar = 22, lw = 72, vw = 64, iw = W - lw - vw, H = data.length * rowH + 4;
+    data.sort(opts.byTotal ? function (a, b) { return b.total - a.total; } : function (a, b) { return a.k < b.k ? -1 : 1; });
+    if (!data.length) { host.innerHTML = '<div class="empty">No accounts in this selection</div>'; return data; }
+    var W = widthOf(host), rowH = 38, bar = 22, lw = Math.min(opts.labelW || 72, W * 0.35), vw = 64, iw = W - lw - vw, H = data.length * rowH + 4;
     var max = Math.max.apply(null, data.map(function (d) { return d.total; })) || 1;
-    var svg = s("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": "Risk dollars by renewal quarter and category" }, host);
+    var svg = s("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": opts.aria }, host);
     s("line", { x1: lw, x2: lw, y1: 0, y2: H, stroke: "var(--axis)" }, svg);
     data.forEach(function (d, i) {
       var y0 = i * rowH + (rowH - bar) / 2, x = lw;
-      text(svg, lw - 10, y0 + bar / 2 + 4, d.q, { "text-anchor": "end", fill: "var(--ink-2)", "font-size": 12 });
+      var lbl = text(svg, lw - 10, y0 + bar / 2 + 4, d.k, { "text-anchor": "end", fill: opts.onClick ? "var(--ink)" : "var(--ink-2)", "font-size": 12 });
+      if (opts.onClick) {
+        lbl.setAttribute("text-decoration", "underline");
+        var nav = s("rect", { x: 0, y: i * rowH, width: lw, height: rowH, fill: "transparent", style: "cursor:pointer" }, svg);
+        hover(nav, null, d.k, [["Accounts", int(d.n)], ["Baseline", money(d.base)], ["", "Click to drill in"]]);
+        nav.addEventListener("click", function () { hideTip(); opts.onClick(d.k); });
+      }
       var segs = RISK_CATS.filter(function (c) { return d[c.id] > 0; });
       segs.forEach(function (c, si) {
         var w = (d[c.id] / max) * iw, last = si === segs.length - 1;
         var p = s("path", { d: hbar(x, y0, last ? w : Math.max(0, w - 2), bar, last), fill: c.color }, svg);
         var hit = s("rect", { x: x, y: i * rowH, width: Math.max(w, 4), height: rowH, fill: "transparent" }, svg);
-        hover(hit, p, d.q + " · " + c.label, [["Risk $", moneyFull(d[c.id])], ["Share of quarter", pct(d[c.id] / d.total)]]);
+        hover(hit, p, d.k + " · " + c.label, [["Risk $", moneyFull(d[c.id])], ["Share of row", pct(d[c.id] / d.total)]]);
         x += w;
       });
       text(svg, x + 8, y0 + bar / 2 + 4, money(d.total), { fill: "var(--ink-2)", "font-size": 12 });
     });
+    return data;
+  }
+  function legendHtml() { return RISK_CATS.map(function (c) { return '<li><span class="sw" style="background:' + c.color + '"></span>' + esc(c.label) + "</li>"; }).join(""); }
+  function renderQuarterChart(rows) {
+    el("qLegend").innerHTML = legendHtml();
+    renderStacked("qChart", rows, function (r) { return r.quarter; }, { aria: "Risk dollars by renewal quarter and category" });
+  }
+  // Breaks the selection down one level: entity -> sales region -> CS owner.
+  function renderBreakdown(rows) {
+    var level = state.region !== "all" ? "owner" : (state.entity !== "all" || ENTITIES.length < 2) ? "region" : "entity";
+    var names = { entity: "sales entity", region: "sales region", owner: "CS owner" };
+    el("bdTitle").textContent = "Risk $ by " + names[level];
+    el("bdHint").textContent = "Split by risk category (each account counted once)." + (level === "owner" ? "" : " Click a name to drill in.");
+    el("bdLegend").innerHTML = legendHtml();
+    var data = renderStacked("bdChart", rows, function (r) { return level === "owner" ? r.owner || "(no owner)" : r[level]; }, {
+      byTotal: true, labelW: 170, aria: "Risk dollars by " + names[level],
+      onClick: level === "owner" ? null : function (k) {
+        if (level === "entity") { state.entity = k; state.region = "all"; } else { state.region = k; if (ENTITY_OF[k]) state.entity = ENTITY_OF[k]; }
+        state.owner = "all"; update();
+      }
+    });
+    el("bdTable").innerHTML = simpleTable([names[level].replace(/^./, function (c) { return c.toUpperCase(); }), "Accounts", "Baseline", "Risk $"].concat(RISK_CATS.map(function (c) { return c.label; })),
+      data.map(function (d) { return [d.k, int(d.n), moneyFull(d.base), moneyFull(d.total)].concat(RISK_CATS.map(function (c) { return moneyFull(d[c.id]); })); }), [1, 2, 3, 4, 5, 6, 7, 8]);
   }
 
   // ---------- risk $ by reason ----------
@@ -632,7 +683,7 @@
 
   // ---------- category tabs = slides ----------
   var COLS = [
-    { k: "account", l: "Account" }, { k: "region", l: "Region" }, { k: "espTxt", l: "ESP" }, { k: "type", l: "Type" },
+    { k: "account", l: "Account" }, { k: "region", l: "Sales region" }, { k: "espTxt", l: "ESP" }, { k: "type", l: "Type" },
     { k: "quarter", l: "Quarter" }, { k: "baseline", l: "Baseline (ARR)", num: 1 }, { k: "riskAmt", l: "Risk $", num: 1 },
     { k: "riskReason", l: "Risk reason" }, { k: "riskSubReason", l: "Sub-reason" }, { k: "consumption", l: "Consumption", num: 1 },
     { k: "phase", l: "Journey phase" }, { k: "riskRank", l: "Risk" }, { k: "riskStatus", l: "Status" }, { k: "owner", l: "Owner" }, { k: "actions", l: "Actions" }
@@ -672,7 +723,7 @@
   }
   function renderSlideTable() {
     var q = el("slideSearch").value.trim().toLowerCase();
-    var list = tabRows.filter(function (r) { return !q || [r.account, r.owner, r.riskReason, r.riskSubReason, r.region].join(" ").toLowerCase().indexOf(q) >= 0; });
+    var list = tabRows.filter(function (r) { return !q || [r.account, r.owner, r.riskReason, r.riskSubReason, r.region, r.entity].join(" ").toLowerCase().indexOf(q) >= 0; });
     list.sort(function (a, b) {
       var x = a[sort.k], y = b[sort.k];
       if (x == null) return 1; if (y == null) return -1;
@@ -737,6 +788,7 @@
     el("subtitle").textContent = scopeLabel() + " · snapshot " + sn.label;
     renderKpis(a, prevSnap ? summarise(prevRows) : null);
     renderCommentary(rows, a);
+    renderBreakdown(rows);
     renderQuarterChart(rows);
     renderReasons(rows);
     renderRollup(rows);

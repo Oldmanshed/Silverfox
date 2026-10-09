@@ -1,7 +1,7 @@
 # CRS risk dashboard (concept)
 
-A single web page that replaces the per-region risk decks with filters for region,
-snapshot, renewal quarter, type, CS owner, ESP and the $100K threshold.
+A single web page that replaces the per-region risk decks with filters for sales entity,
+sales region, snapshot, renewal quarter, type, CS owner, ESP and the $100K threshold.
 It's built from the same Matik pull that feeds the deck today.
 
 ```
@@ -43,22 +43,23 @@ document library. The page has no external dependencies (no CDNs, no fonts), so 
 
 ```bash
 pip install pandas openpyxl
-python tools/build.py add "CRS_Sheet.xlsx" --region EMEA --snapshot 2026-10-09
-python tools/build.py add "CRS_Sheet ANZ.xlsx" --region ANZ --snapshot 2026-10-09
-python tools/build.py html          # -> risk-dashboard.html, upload this
+python tools/build.py add "CRS_Dump.xlsx" --snapshot 2026-10-09   # one dump, all regions
+python tools/build.py html                                          # -> risk-dashboard.html, upload this
+# older single-region workbooks: add --region "Europe North" --entity EMEA
 ```
 
 - It reads the **raw `SourceData` sheet only**. The slide logic (Consumption, Technical,
   and so on) is done in the page, so none of the formula sheets need to recalculate
   before a build.
-- Re-running the same region and snapshot replaces it, so mistakes are easy to fix.
+- Re-running the same snapshot replaces it, so mistakes are easy to fix.
 - `*.xlsx` and `data/*.json` are git-ignored, so customer data can't be committed by accident.
 
 ### Data contract (SourceData headers → page)
 
 | SourceData column | Used for |
 |---|---|
-| Region *(new: add to the Matik pull, or pass `--region`)* | Region switch |
+| Sales Entity *(new)* | Sales entity switch, and the top level of the breakdown chart |
+| Sales Region *(new)* | Sales region switch (Europe North, Channel, Service Provider, …) |
 | Account | Rows, and matching accounts between snapshots |
 | SFDC Account Id *(recommended addition)* | Safer matching than the account name |
 | ESP, Type, Quarter, CS Owner Name | Filters |
@@ -91,8 +92,8 @@ These are worth fixing whether or not the web page goes ahead.
 6. **Quarters are hard-coded** (`"FY27-"&Q`, `FY28-Q1`, `FY28-Q2`, and `'CRS Pull'!U1:U3`).
    `MATIK!C97` is already `#REF!`, and `MATIK!A14:A15` show `#VALUE!`.
 7. **Ranges stop at row 600.** Bigger regions would be cut off without warning.
-8. **No Region column**, so each region needs its own workbook. One pull with a Region
-   column would feed every region at once.
+8. **No region columns**, so each region needs its own workbook. One dump with
+   Sales Entity and Sales Region columns feeds every region at once (supported now).
 9. **Currency:** headers say `$`, but `Logic_Documentation` shows `£`. Confirm which one
    Gainsight returns. The page reads `meta.currency`.
 
