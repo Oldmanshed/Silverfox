@@ -20,6 +20,10 @@
     --brand-text: #23215c;
     --brand-ink: #ffffff;
     --brand-soft: #ecebf6;
+    --esp: #7b3fe4;
+    --high-bg: rgba(208, 59, 59, 0.12); --high-ink: #a52a2a;
+    --med-bg: rgba(236, 131, 90, 0.18); --med-ink: #93401a;
+    --low-bg: rgba(12, 163, 12, 0.12); --low-ink: #006300;
     --accent: #2a78d6;
     --good-text: #006300;
     --bad-text: #b42f2f;
@@ -34,6 +38,7 @@
       --ink: #ffffff; --ink-2: #c3c2b7; --muted: #8f8d86; --grid: #2c2c2a; --axis: #3d3d3a;
       --border: rgba(255, 255, 255, 0.09);
       --brand: #3a37a0; --brand-text: #b3b0ff; --brand-ink: #ffffff; --brand-soft: #23223f;
+      --esp: #8b5cf6; --high-bg: rgba(230, 103, 103, 0.18); --high-ink: #ff9a9a; --med-bg: rgba(236, 131, 90, 0.2); --med-ink: #f4ae8c; --low-bg: rgba(12, 163, 12, 0.18); --low-ink: #5fd35f;
       --accent: #3987e5; --good-text: #0ca30c; --bad-text: #e66767; --warn-bg: #3a2f12; --warn-ink: #f5dfa6;
     }
   }
@@ -43,6 +48,7 @@
     --ink: #ffffff; --ink-2: #c3c2b7; --muted: #8f8d86; --grid: #2c2c2a; --axis: #3d3d3a;
     --border: rgba(255, 255, 255, 0.09);
     --brand: #3a37a0; --brand-text: #b3b0ff; --brand-ink: #ffffff; --brand-soft: #23223f;
+    --esp: #8b5cf6; --high-bg: rgba(230, 103, 103, 0.18); --high-ink: #ff9a9a; --med-bg: rgba(236, 131, 90, 0.2); --med-ink: #f4ae8c; --low-bg: rgba(12, 163, 12, 0.18); --low-ink: #5fd35f;
     --accent: #3987e5; --good-text: #0ca30c; --bad-text: #e66767; --warn-bg: #3a2f12; --warn-ink: #f5dfa6;
   }
 
@@ -122,6 +128,28 @@
   a.acct:hover { text-decoration: underline; color: var(--accent); }
   .tag { display: inline-block; font-size: 11px; font-weight: 600; padding: 0 6px; border-radius: 4px; background: var(--brand-soft); color: var(--brand-text); margin-left: 6px; vertical-align: 1px; }
   .risk-amt { color: var(--bad-text); font-weight: 600; }
+  /* visual cells */
+  .chip { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; line-height: 18px; padding: 0 8px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); white-space: nowrap; }
+  .chip.esp { background: var(--esp); color: #fff; font-weight: 700; font-size: 11px; letter-spacing: 0.04em; margin-left: 6px; vertical-align: 1px; }
+  .chip.st-churn { background: var(--high-bg); color: var(--high-ink); font-weight: 600; }
+  .chip.st-saved { background: var(--low-bg); color: var(--low-ink); font-weight: 600; }
+  .rpill { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; line-height: 20px; padding: 0 9px; border-radius: 999px; white-space: nowrap; }
+  .rpill.high { background: var(--high-bg); color: var(--high-ink); }
+  .rpill.medium { background: var(--med-bg); color: var(--med-ink); }
+  .rpill.low { background: var(--low-bg); color: var(--low-ink); }
+  .stack { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+  .meter { position: relative; display: inline-block; width: 64px; height: 6px; border-radius: 3px; background: var(--grid); vertical-align: middle; }
+  .meter > span { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; }
+  .meter > i { position: absolute; top: -3px; bottom: -3px; width: 1px; background: var(--ink-2); opacity: 0.5; }
+  .mval { display: inline-block; min-width: 40px; text-align: right; margin-left: 8px; font-variant-numeric: tabular-nums; }
+  .dbar { display: block; height: 4px; margin-top: 5px; border-radius: 2px; background: var(--grid); }
+  .dbar > span { display: block; height: 100%; border-radius: 2px; background: var(--critical); margin-left: auto; }
+  .owner { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+  .avatar { width: 24px; height: 24px; border-radius: 50%; background: var(--brand-soft); color: var(--brand-text); font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+  .key { display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; font-size: 12px; color: var(--ink-2); margin: 10px 0 0; padding: 8px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+  #slideTable td:first-child { min-width: 220px; }
+  .key > span { display: inline-flex; align-items: center; gap: 6px; }
+  .key b { font-weight: 600; color: var(--ink); }
   .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; white-space: nowrap; }
   .table-scroll { overflow-x: auto; }
   .table-tools { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; margin-bottom: 10px; }
@@ -207,7 +235,7 @@
   "use strict";
   var DATA = JSON.parse(document.getElementById("risk-data").textContent);
   var META = DATA.meta || {};
-  var RULES = Object.assign({ consumptionThreshold: 0.5, blankConsumptionIsZero: true, minBaselineForRollup: 100000 }, META.rules || {});
+  var RULES = Object.assign({ consumptionThreshold: 0.5, healthyConsumption: 0.8, blankConsumptionIsZero: true, minBaselineForRollup: 100000 }, META.rules || {});
 
   // ---------- slides: one per risk category ----------
   // "exclusive" walks the list in order and stops at the first match, so every
@@ -314,9 +342,44 @@
   function gainsightUrl(r) { return r.gainsightUrl || fillLink(LINKS.gainsight, r); }
   function accountCell(r, showRegion, isNew) {
     var gs = gainsightUrl(r), sf = fillLink(LINKS.salesforce, r);
-    var name = gs ? '<a class="acct" href="' + esc(gs) + '" target="_blank" rel="noopener" title="Open in Gainsight">' + esc(r.account) + " ↗</a>" : '<span class="acct">' + esc(r.account) + "</span>";
+    var name = gs ? '<a class="acct" href="' + esc(gs) + '" target="_blank" rel="noopener" title="Open in Gainsight">' + esc(r.account) + "&nbsp;↗</a>" : '<span class="acct">' + esc(r.account) + "</span>";
     var sub = [showRegion ? esc(r.region) : "", sf ? '<a href="' + esc(sf) + '" target="_blank" rel="noopener">Salesforce ↗</a>' : ""].filter(Boolean).join(" · ");
-    return name + (isNew ? '<span class="tag">New</span>' : "") + (sub ? '<br><span class="count">' + sub + "</span>" : "");
+    return name + (r.esp ? '<span class="chip esp" title="ESP account">ESP</span>' : "") + (isNew ? '<span class="tag">New</span>' : "") +
+      (sub ? '<br><span class="count">' + sub + "</span>" : "");
+  }
+
+  // ---------- visual cells ----------
+  function riskPill(r) {
+    var lvl = RISK_LEVEL[r.risk];
+    var pill = lvl ? '<span class="rpill ' + r.risk.toLowerCase() + '"><span aria-hidden="true">' + lvl[1] + "</span>" + esc(r.risk) + "</span>" : '<span class="count">—</span>';
+    var st = r.riskStatus === "Churn" ? '<span class="chip st-churn">Churn</span>' : r.riskStatus === "Saved" ? '<span class="chip st-saved">Saved</span>' : "";
+    return '<div class="stack">' + pill + st + "</div>";
+  }
+  function consumptionMeter(v) {
+    if (v == null) return '<span class="count">—</span>';
+    var color = v < RULES.consumptionThreshold ? "var(--critical)" : v < RULES.healthyConsumption ? "var(--warning)" : "var(--good)";
+    return '<span class="meter" title="' + pct(v, 1) + '"><span style="width:' + Math.min(100, v * 100) + "%;background:" + color + '"></span><i style="left:' +
+      RULES.consumptionThreshold * 100 + '%"></i></span><span class="mval">' + pct(v) + "</span>";
+  }
+  function riskAmount(v, max) {
+    if (!v) return '<span class="count">—</span>';
+    return '<span class="risk-amt">' + moneyFull(v) + "</span>" + (max ? '<span class="dbar"><span style="width:' + Math.max(2, (v / max) * 100) + '%"></span></span>' : "");
+  }
+  function typeChip(t) { return t ? '<span class="chip">' + (t === "SaaS" ? "☁ SaaS" : "▣ " + esc(t)) + "</span>" : '<span class="count">—</span>'; }
+  function ownerCell(name) {
+    if (!name) return '<span class="count">—</span>';
+    var parts = String(name).trim().split(/\s+/), ini = (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
+    return '<span class="owner"><span class="avatar" aria-hidden="true">' + esc(ini) + "</span>" + esc(name) + "</span>";
+  }
+  function keyHtml(withMeter) {
+    var t = Math.round(RULES.consumptionThreshold * 100), h = Math.round(RULES.healthyConsumption * 100);
+    return '<div class="key"><b>Key</b>' +
+      '<span><span class="chip esp" style="margin:0">ESP</span> ESP account</span>' +
+      (withMeter ? '<span><span class="tag" style="margin:0">New</span> new on this slide since last week</span>' : "") +
+      '<span><span class="rpill high">✖ High</span><span class="rpill medium">▲ Medium</span><span class="rpill low">● Low</span> risk level</span>' +
+      (withMeter ? '<span><span class="meter"><span style="width:100%;background:linear-gradient(90deg,var(--critical) 0 ' + t + '%,var(--warning) ' + t + "% " + h + '%,var(--good) ' + h + '%)"></span></span> consumption: under ' + t + "% · " + t + "–" + h + "% · " + h + "%+</span>" +
+        '<span><span class="dbar" style="width:48px;margin:0"><span style="width:60%"></span></span> risk $, relative to the largest on the slide</span>' : "") +
+      "<span>Account names open Gainsight ↗</span></div>";
   }
   // Inside SharePoint's sandbox the page's own address is "about:srcdoc", which can't be shared.
   var SANDBOXED = (function () { try { return /^about:/.test(location.href); } catch (e) { return true; } })();
@@ -406,10 +469,6 @@
       if (d.onClick) { lbl.setAttribute("text-decoration", "underline"); hit.addEventListener("click", function () { hideTip(); d.onClick(); }); }
     });
   }
-  function badge(map, key) {
-    var b = map[key];
-    return b ? '<span class="badge"><span aria-hidden="true" style="color:' + b[0] + '">' + b[1] + "</span>" + esc(key) + "</span>" : '<span style="color:var(--muted)">—</span>';
-  }
   function delta(now, before, f, upIsGood, prevLabel) {
     var d = now - before;
     if (Math.abs(d) < 1e-6 || f(Math.abs(d)) === f(0)) return "No change vs " + esc(prevLabel);
@@ -449,9 +508,9 @@
 
     html += '<div class="section"><h2>Top 3 accounts at risk</h2><div class="table-scroll"><table><thead><tr><th>Account</th><th>Quarter</th><th class="num">Baseline</th><th class="num">Risk $</th><th>Risk reason</th><th>Risk</th><th>Owner</th></tr></thead><tbody>' +
       (top3.length ? top3.map(function (r) {
-        return "<tr><td>" + accountCell(r, true) + '</td><td class="nowrap">' + esc(r.quarter) + '</td><td class="num">' + moneyFull(r.baseline) + '</td><td class="num risk-amt">' + moneyFull(r.riskAmt) +
-          "</td><td>" + esc(r.riskReason || "—") + "</td><td>" + badge(RISK_LEVEL, r.risk) + '</td><td class="nowrap">' + esc(r.owner || "—") + "</td></tr>";
-      }).join("") : '<tr><td colspan="7" class="empty">No risk $ in this selection</td></tr>') + "</tbody></table></div></div>";
+        return "<tr><td>" + accountCell(r, true) + '</td><td><span class="chip">' + esc(r.quarter) + '</span></td><td class="num">' + moneyFull(r.baseline) + '</td><td class="num">' + riskAmount(r.riskAmt) +
+          "</td><td>" + esc(r.riskReason || "—") + "</td><td>" + riskPill(r) + "</td><td>" + ownerCell(r.owner) + "</td></tr>";
+      }).join("") : '<tr><td colspan="7" class="empty">No risk $ in this selection</td></tr>') + "</tbody></table></div>" + keyHtml(false) + "</div>";
 
     el("view").innerHTML = html;
 
@@ -474,9 +533,9 @@
   // ---------- category slide ----------
   var sort = { k: "riskAmt", dir: -1 }, showAll = false, TOP_N = 15, slideRows = [];
   var COLS = [
-    { k: "account", l: "Account" }, { k: "espTxt", l: "ESP" }, { k: "type", l: "Type" }, { k: "quarter", l: "Quarter" },
+    { k: "account", l: "Account" }, { k: "type", l: "Type" }, { k: "quarter", l: "Quarter" },
     { k: "baseline", l: "Baseline (ARR)", num: 1 }, { k: "riskAmt", l: "Risk $", num: 1 }, { k: "riskSubReason", l: "Risk sub-reason" },
-    { k: "consumption", l: "Util %", num: 1 }, { k: "riskRank", l: "Risk", num: 1 }, { k: "owner", l: "Owner" }
+    { k: "consumption", l: "Consumption", num: 1 }, { k: "riskRank", l: "Risk", num: 1 }, { k: "owner", l: "Owner" }
   ];
   function renderCategory(rows, prev, prevSnap) {
     var c = CAT[state.view], list = members(rows, c), prevList = members(prev, c), prevIds = {};
@@ -496,12 +555,12 @@
       tile(c.label + " risk $", money(sum(list, "riskAmt")), prevSnap ? delta(sum(list, "riskAmt"), sum(prevList, "riskAmt"), money, false, weekOnly(prevSnap)) : "", true) + "</div>";
     html += '<div class="section"><div class="table-tools"><span class="count" id="slideCount"></span>' +
       '<input type="search" id="slideSearch" placeholder="Search accounts, owners, reasons" aria-label="Search accounts"></div>' +
-      '<div class="table-scroll"><table id="slideTable"></table></div></div>';
+      keyHtml(true) + '<div class="table-scroll" style="margin-top:12px"><table id="slideTable"></table></div></div>';
     el("view").innerHTML = html;
 
     slideRows = list.map(function (r) {
       return Object.assign({}, r, {
-        espTxt: r.esp ? "Y" : "N", riskRank: ({ High: 3, Medium: 2, Low: 1 })[r.risk] || 0,
+        riskRank: ({ High: 3, Medium: 2, Low: 1 })[r.risk] || 0,
         isNew: !!prevSnap && !prevIds[r.accountId || r.account]
       });
     });
@@ -520,15 +579,15 @@
       return (typeof x === "number" ? x - y : String(x).localeCompare(String(y))) * sort.dir;
     });
     var total = list.length, showRegion = scopeParts()[0] !== "region";
+    var maxRisk = Math.max.apply(null, slideRows.map(function (r) { return r.riskAmt || 0; }).concat([0]));
     if (!showAll && !q) list = list.slice(0, TOP_N);
     var head = "<thead><tr>" + COLS.map(function (c) {
-      return '<th class="' + (c.num && c.k !== "riskRank" ? "num" : "") + '" aria-sort="' + (sort.k === c.k ? (sort.dir > 0 ? "ascending" : "descending") : "none") + '"><button type="button" data-k="' + c.k + '">' + esc(c.l) + "</button></th>";
+      return '<th class="' + (c.num && c.k !== "riskRank" && c.k !== "consumption" ? "num" : "") + '" aria-sort="' + (sort.k === c.k ? (sort.dir > 0 ? "ascending" : "descending") : "none") + '"><button type="button" data-k="' + c.k + '">' + esc(c.l) + "</button></th>";
     }).join("") + "</tr></thead>";
     var body = list.map(function (r) {
-      return "<tr><td>" + accountCell(r, showRegion, r.isNew) + "</td>" +
-        "<td>" + r.espTxt + "</td><td>" + esc(r.type) + '</td><td class="nowrap">' + esc(r.quarter) + '</td><td class="num">' + moneyFull(r.baseline) +
-        '</td><td class="num risk-amt">' + (r.riskAmt ? moneyFull(r.riskAmt) : "—") + "</td><td>" + esc(r.riskSubReason || "—") +
-        '</td><td class="num">' + pct(r.consumption, 1) + "</td><td>" + badge(RISK_LEVEL, r.risk) + '</td><td class="nowrap">' + esc(r.owner || "—") + "</td></tr>";
+      return "<tr><td>" + accountCell(r, showRegion, r.isNew) + "</td><td>" + typeChip(r.type) + '</td><td><span class="chip">' + esc(r.quarter) + "</span>" +
+        '</td><td class="num">' + moneyFull(r.baseline) + '</td><td class="num">' + riskAmount(r.riskAmt, maxRisk) + "</td><td>" + esc(r.riskSubReason || "—") +
+        '</td><td class="nowrap">' + consumptionMeter(r.consumption) + "</td><td>" + riskPill(r) + "</td><td>" + ownerCell(r.owner) + "</td></tr>";
     }).join("");
     if (!total) body = '<tr><td colspan="' + COLS.length + '" class="empty">No accounts on this slide</td></tr>';
     if (total > list.length) body += '<tr><td colspan="' + COLS.length + '" style="text-align:center;border:0;padding-top:14px"><button type="button" class="btn" id="showAll">Show all ' + int(total) + " accounts</button></td></tr>";

@@ -71,6 +71,7 @@ META = {
     "links": {},
     "rules": {
         "consumptionThreshold": 0.5,
+        "healthyConsumption": 0.8,
         "blankConsumptionIsZero": True,
         "minBaselineForRollup": 100000,
     },
