@@ -207,7 +207,7 @@
     <label>Renewal quarter <select id="fQuarter"></select></label>
     <label>Type <select id="fType"></select></label>
     <label>CS owner <select id="fOwner"></select></label>
-    <label class="chk"><input type="checkbox" id="fEsp"> ESP accounts only</label>
+    <label class="chk"><input type="checkbox" id="fEsp"> Enterprise Success Partner (ESP) accounts only</label>
     <label class="chk"><input type="checkbox" id="fMin"> <span id="fMinLabel">Baseline ≥ $100K only</span></label>
     <label>Slide rules
       <select id="fMode">
@@ -344,7 +344,7 @@
     var gs = gainsightUrl(r), sf = fillLink(LINKS.salesforce, r);
     var name = gs ? '<a class="acct" href="' + esc(gs) + '" target="_blank" rel="noopener" title="Open in Gainsight">' + esc(r.account) + "&nbsp;↗</a>" : '<span class="acct">' + esc(r.account) + "</span>";
     var sub = [showRegion ? esc(r.region) : "", sf ? '<a href="' + esc(sf) + '" target="_blank" rel="noopener">Salesforce ↗</a>' : ""].filter(Boolean).join(" · ");
-    return name + (r.esp ? '<span class="chip esp" title="ESP account">ESP</span>' : "") + (isNew ? '<span class="tag">New</span>' : "") +
+    return name + (r.esp ? '<span class="chip esp" title="Enterprise Success Partner">ESP</span>' : "") + (isNew ? '<span class="tag">New</span>' : "") +
       (sub ? '<br><span class="count">' + sub + "</span>" : "");
   }
 
@@ -374,7 +374,7 @@
   function keyHtml(withMeter) {
     var t = Math.round(RULES.consumptionThreshold * 100), h = Math.round(RULES.healthyConsumption * 100);
     return '<div class="key"><b>Key</b>' +
-      '<span><span class="chip esp" style="margin:0">ESP</span> ESP account</span>' +
+      '<span><span class="chip esp" style="margin:0">ESP</span> Enterprise Success Partner</span>' +
       (withMeter ? '<span><span class="tag" style="margin:0">New</span> new on this slide since last week</span>' : "") +
       '<span><span class="rpill high">✖ High</span><span class="rpill medium">▲ Medium</span><span class="rpill low">● Low</span> risk level</span>' +
       (withMeter ? '<span><span class="meter"><span style="width:100%;background:linear-gradient(90deg,var(--critical) 0 ' + t + '%,var(--warning) ' + t + "% " + h + '%,var(--good) ' + h + '%)"></span></span> consumption: under ' + t + "% · " + t + "–" + h + "% · " + h + "%+</span>" +
