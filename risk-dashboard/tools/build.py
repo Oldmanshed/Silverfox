@@ -60,9 +60,19 @@ COLUMNS = {
 REQUIRED = ["Account", "Type", "Quarter", "Baseline", "Risk $", "Risk Reason", "Consumption %", "Risk"]
 
 META = {
-    "title": "Customer Risk Review",
+    "title": "Area Risk Review",
     "currency": "USD",
     "sources": ["Gainsight", "Salesforce", "Matik"],
+    # Manager notes and sales-leader callouts live in two SharePoint lists on the
+    # same site as the page. Column names are the lists' internal names.
+    "notes": {
+        "list": "Account Risk Notes",
+        "newItemUrl": "Lists/AccountRiskNotes/NewForm.aspx",
+        "fields": {"accountId": "AccountId", "account": "Title", "region": "SalesRegion", "week": "Week",
+                   "analysis": "Analysis", "nextStep": "NextStep", "outlook": "Outlook"},
+        "calloutsList": "Region Callouts",
+        "calloutFields": {"region": "Title", "week": "Week", "text": "Callout"},
+    },
     "rules": {
         "consumptionThreshold": 0.5,
         "blankConsumptionIsZero": True,
@@ -133,6 +143,14 @@ def day_label(d):
     return f"{d.day} {d.strftime('%b %Y')}"  # %-d is not portable to Windows
 
 
+def snapshot_entry(d: date):
+    """Snapshot id plus the fiscal week label used in the deck header ("FY27-Q3 · Week 2")."""
+    fy, q = fy_quarter(d)
+    q_start = date(d.year, {1: 1, 2: 4, 3: 7, 4: 10}[(d.month - 1) // 3 + 1], 1)
+    week = (d - q_start).days // 7 + 1
+    return {"id": d.isoformat(), "week": f"{quarter_label(fy, q)} · Week {week}", "label": f"Week {week} · {d.day} {d.strftime('%b')}", "date": day_label(d)}
+
+
 # ---------------------------------------------------------------- history store
 def load(path: Path):
     if path.exists():
@@ -156,7 +174,7 @@ def add_snapshot(args):
         r["snapshot"] = snap
     data["rows"].extend(rows)
     if not any(s["id"] == snap for s in data["snapshots"]):
-        data["snapshots"].append({"id": snap, "label": day_label(datetime.fromisoformat(snap))})
+        data["snapshots"].append(snapshot_entry(date.fromisoformat(snap)))
     data["snapshots"].sort(key=lambda s: s["id"])
     data.setdefault("warnings", {})[f"{snap} {', '.join(sorted(regions))}"] = warnings
     save(data, args.data)
@@ -243,7 +261,7 @@ def make_sample(seed=11):
             used.add(name)
             typ = rnd.choice(["SaaS", "Software"])
             accounts.append({
-                "entity": entity, "region": region, "account": name, "type": typ, "esp": rnd.random() < 0.13,
+                "accountId": f"001SAMPLE{len(accounts) + 1:05d}", "entity": entity, "region": region, "account": name, "type": typ, "esp": rnd.random() < 0.13,
                 "quarter": rnd.choice(all_quarters), "owner": rnd.choice(owners) if rnd.random() > 0.05 else None,
                 "baseline": round(rnd.lognormvariate(12.4, 0.75), 2),
                 "consumption": min(1.0, max(0.0, rnd.betavariate(4, 1.6))) if rnd.random() > 0.06 else None,
@@ -273,7 +291,7 @@ def make_sample(seed=11):
             if reason is None and rnd.random() < 0.4:
                 pct = 0.25  # risk $ recorded but no reason: a data-quality case worth surfacing
             rows.append({
-                "snapshot": s.isoformat(), "entity": a["entity"], "region": a["region"], "account": a["account"], "esp": a["esp"],
+                "snapshot": s.isoformat(), "accountId": a["accountId"], "entity": a["entity"], "region": a["region"], "account": a["account"], "esp": a["esp"],
                 "type": a["type"], "quarter": a["quarter"], "baseline": a["baseline"],
                 "riskAmt": round(a["baseline"] * pct, 2), "riskReason": reason,
                 "riskStatus": None if reason is None else ("Churn" if risk == "High" and rnd.random() < 0.08 else a["status"]),
@@ -281,8 +299,52 @@ def make_sample(seed=11):
                 "saasPhase": a["saasPhase"], "swPhase": a["swPhase"], "risk": risk, "owner": a["owner"], "actions": None,
             })
 
-    meta = dict(META, note="SAMPLE DATA: fictional accounts with the same columns as the Matik SourceData sheet.")
-    return {"meta": meta, "snapshots": [{"id": s.isoformat(), "label": day_label(s)} for s in snaps], "rows": rows}
+    entries = [snapshot_entry(s) for s in snaps]
+    meta = dict(META, note="SAMPLE DATA: fictional accounts, notes and callouts.")
+    notes, callouts = sample_notes(rnd, rows, entries)
+    return {"meta": meta, "snapshots": entries, "rows": rows, "sampleNotes": notes, "sampleCallouts": callouts}
+
+
+NOTE_ANALYSIS = [
+    "Customer is comparing costs with {comp}. Value story landed with IT but not yet with finance.",
+    "Sponsor left in the last reorg; new IT director has not engaged yet.",
+    "Adoption stalled after onboarding. Only two of five workloads protected.",
+    "Performance issues on the last two restores, now resolved by support. Sentiment recovering.",
+    "Budget freeze until next fiscal year; renewal likely to slip a quarter.",
+    "Exec sponsor confirmed intent to renew at the QBR. Pricing still open.",
+]
+NOTE_NEXT = [
+    "Exec-to-exec call with our VP before month end.",
+    "Run a health check and share the adoption plan.",
+    "Bring in the partner to position the multi-year option.",
+    "Schedule value review with finance stakeholders.",
+    "Confirm technical fix with the customer and close the support case.",
+]
+OUTLOOKS = ["Expect to save", "At risk", "At risk", "Likely churn"]
+CALLOUTS = [
+    "Two large renewals slipped into next quarter; both still expected to close.",
+    "Competitive pressure rising in mid-market; pricing guidance requested from leadership.",
+    "Adoption programme is moving low-consumption accounts; three moved out of risk this week.",
+]
+
+
+def sample_notes(rnd, rows, entries):
+    latest = entries[-1]["id"]
+    at_risk = sorted((r for r in rows if r["snapshot"] == latest and r["riskAmt"] > 0), key=lambda r: -r["riskAmt"])
+    week_of = {e["id"]: e["week"] for e in entries}
+    notes = []
+    for r in at_risk[: int(len(at_risk) * 0.6)]:
+        for snap in rnd.sample([e["id"] for e in entries[-3:]], rnd.randint(1, 3)):
+            notes.append({
+                "accountId": r["accountId"], "account": r["account"], "region": r["region"], "week": week_of[snap],
+                "analysis": rnd.choice(NOTE_ANALYSIS).format(comp=rnd.choice(["a competitor", "a cloud-native vendor"])),
+                "nextStep": rnd.choice(NOTE_NEXT), "outlook": rnd.choice(OUTLOOKS),
+                "author": rnd.choice(["A. Manager", "B. Manager", "C. Manager"]), "created": snap,
+            })
+    regions = sorted({r["region"] for r in rows})
+    callouts = [{"region": g, "week": entries[-1]["week"], "text": rnd.choice(CALLOUTS), "author": "Sales leader", "created": latest}
+                for g in regions if rnd.random() < 0.7]
+    return notes, callouts
 
 
 def main():

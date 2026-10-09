@@ -29,8 +29,10 @@ It has the same columns as `SourceData`. Use it to test SharePoint before any re
    - [ ] The page shows numbers rather than a yellow "Scripts are blocked" box.
    - [ ] Changing **Region** updates the tiles, charts and tables.
    - [ ] **Snapshot** goes back in time, and the trend chart point is clickable.
-   - [ ] The **Risk categories** tabs switch, and **Show all** expands the table.
-   - [ ] **Slide rules → As the current workbook** shows the overlap warning.
+   - [ ] The slide tabs switch, and **Show all** expands the table.
+   - [ ] Clicking an account opens its notes.
+   - [ ] After creating the two lists below, the footer says **Notes: live from SharePoint**.
+   - [ ] **More filters → Slide rules → As the current workbook** shows the overlap warning.
    - [ ] **Copy link** gives a URL that reopens the same view. If SharePoint blocks
      clipboard access, a pop-up shows the link to copy instead.
    - [ ] **Print / PDF** gives a usable handout.
@@ -38,6 +40,32 @@ It has the same columns as `SourceData`. Use it to test SharePoint before any re
 
 If scripts are blocked, the fallback is the **Embed** web part pointing at the same file in a
 document library. The page has no external dependencies (no CDNs, no fonts), so it works offline too.
+
+## Manager notes and callouts (SharePoint lists)
+
+Notes live in two SharePoint lists on the same site as the page. Every update is a
+**new item**, so each account builds up a week-by-week history. The page shows the
+latest note in the table, and the full history when you click an account.
+
+**Account Risk Notes.** Create each column with the name shown (no spaces), then rename the display name if you like:
+
+| Column | Type |
+|---|---|
+| Title | Account name (the list's built-in column) |
+| AccountId | Single line of text: Salesforce Account Id |
+| SalesRegion | Single line of text |
+| Week | Single line of text, e.g. `FY27-Q3 · Week 2` |
+| Analysis | Multiple lines of text |
+| NextStep | Multiple lines of text |
+| Outlook | Choice: Expect to save / At risk / Likely churn |
+
+**Region Callouts.** Title (sales region), Week, Callout (multiple lines).
+
+Created by and Created are automatic. The page reads both lists when it opens,
+using the viewer's own permissions. The footer says whether that worked:
+"Notes: live from SharePoint", or the reason it couldn't connect. That doubles as
+the test of whether HTML pages can read lists. List names and column mapping are
+in `META["notes"]` in `tools/build.py`.
 
 ## 2. Use real data (on your machine, not in this repo)
 
