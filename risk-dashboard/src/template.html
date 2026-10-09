@@ -154,6 +154,11 @@
   footer summary { cursor: pointer; }
   .checks { list-style: none; padding: 0; margin: 8px 0 0; }
   .checks li { padding: 3px 0; }
+  .conn-test { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; color: var(--ink-2); font-size: 13px; }
+  .conn-test summary { font-weight: 600; color: var(--ink); }
+  table.conn { margin-top: 8px; }
+  table.conn th, table.conn td { background: none; border-bottom: 1px solid var(--grid); padding: 6px 8px; font-size: 13px; text-align: left; word-break: break-all; white-space: normal; }
+  table.conn th { width: 190px; color: var(--ink-2); border-radius: 0; }
 
   .tip { position: absolute; pointer-events: none; z-index: 10; display: none; background: var(--surface); color: var(--ink); border: 1px solid var(--border); box-shadow: 0 4px 16px rgba(0,0,0,.14); border-radius: 8px; padding: 8px 10px; font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
   .tip b { display: block; margin-bottom: 2px; }
@@ -217,6 +222,9 @@
     <span id="footGen"></span>
     <span id="footNotes"></span>
     <details><summary id="checksSummary">Data checks</summary><ul class="checks" id="checks"></ul></details>
+    <details class="conn-test" open><summary>SharePoint connection test</summary>
+      <table class="conn"><tbody id="conn"></tbody></table>
+    </details>
   </footer>
 </div>
 <div class="tip" id="tip" role="status"></div>
@@ -340,18 +348,30 @@
     var c = cutoff();
     return list.filter(function (n) { return n.created < c; });
   }
+  // What the page can see of where it is running. Shown in the connection test box.
+  var SITE_RE = /^(https:\/\/[^/]+\.sharepoint\.com(?:\/(?:sites|teams)\/[^/?#]+)?)/i;
+  var diag = { address: "", inFrame: "", referrer: "", context: "", site: "", via: "", result: "Not tried yet" };
+  function safe(f) { try { return f(); } catch (e) { return "(hidden: " + e.name + ")"; } }
   function webUrl() {
-    try {
-      if (window._spPageContextInfo && window._spPageContextInfo.webAbsoluteUrl) return window._spPageContextInfo.webAbsoluteUrl;
-      var m = location.href.match(/^(https:\/\/[^/]+\.sharepoint\.com(?:\/(?:sites|teams)\/[^/?#]+)?)/i);
-      return m ? m[1] : null;
-    } catch (e) { return null; }
+    diag.address = safe(function () { return location.href.split("#")[0]; });
+    diag.inFrame = safe(function () { return window.self !== window.top ? "yes" : "no"; });
+    diag.referrer = safe(function () { return document.referrer || "(none)"; });
+    var ctx = safe(function () { return window._spPageContextInfo && window._spPageContextInfo.webAbsoluteUrl; });
+    diag.context = ctx ? "found" : "not available";
+    if (ctx && ctx.indexOf("(hidden") !== 0) { diag.via = "page context"; return ctx; }
+    var m = SITE_RE.exec(String(diag.address));
+    if (m) { diag.via = "page address"; return m[1]; }
+    m = SITE_RE.exec(String(diag.referrer));
+    if (m) { diag.via = "referring page"; return m[1]; }
+    return null;
   }
   var WEB = webUrl();
+  diag.site = WEB || "(could not work out the SharePoint site)";
   function listFormUrl(title) { return WEB && title ? WEB + "/Lists/" + title.replace(/\s+/g, "") + "/NewForm.aspx" : null; }
   function fetchList(title, fields) {
     var url = WEB + "/_api/web/lists/getbytitle('" + encodeURIComponent(title.replace(/'/g, "''")) + "')/items?$top=5000&$orderby=Created desc&$select=*,Author/Title&$expand=Author";
-    return fetch(url, { headers: { Accept: "application/json;odata=nometadata" }, credentials: "include" })
+    var timeout = new Promise(function (_, reject) { setTimeout(function () { reject(new Error("no reply after 15 seconds")); }, 15000); });
+    return Promise.race([fetch(url, { headers: { Accept: "application/json;odata=nometadata" }, credentials: "include" }), timeout])
       .then(function (res) { if (!res.ok) throw new Error("HTTP " + res.status); return res.json(); })
       .then(function (j) {
         return (j.value || []).map(function (it) {
@@ -362,10 +382,11 @@
       });
   }
   function loadLiveNotes() {
-    if (!WEB) { notes.detail = "page is not on SharePoint"; renderFooterNotes(); return; }
-    if (!NOTES_CFG.list || !window.fetch) return;
-    notes.detail = "connecting…"; renderFooterNotes();
+    if (!WEB) { notes.detail = "page is not on SharePoint"; diag.result = "Not tried: the page couldn't work out which SharePoint site it is on."; renderFooterNotes(); return; }
+    if (!NOTES_CFG.list || !window.fetch) { diag.result = "Not tried: no notes list configured, or this browser has no fetch."; renderFooterNotes(); return; }
+    notes.detail = "connecting…"; diag.result = "Connecting to " + WEB + " …"; renderFooterNotes();
     fetchList(NOTES_CFG.list, NOTES_CFG.fields || {}).then(function (list) {
+      diag.result = "✓ Read the \"" + NOTES_CFG.list + "\" list: " + list.length + " notes. Live notes work.";
       notes.list = list; notes.status = "live"; notes.detail = list.length + " notes";
       indexNotes(); render();
       if (NOTES_CFG.calloutsList) {
@@ -374,6 +395,10 @@
       }
     }).catch(function (e) {
       notes.detail = "couldn't read the \"" + NOTES_CFG.list + "\" list: " + e.message;
+      var m = e.message;
+      diag.result = m === "HTTP 404" ? "✓ Reached SharePoint. The \"" + NOTES_CFG.list + "\" list doesn't exist yet (HTTP 404). Create it and notes will load."
+        : /HTTP 40[13]/.test(m) ? "Reached SharePoint but was refused (" + m + "). Check permissions on the list."
+        : "✗ Couldn't reach SharePoint from the page (" + m + "). Notes will need to be added at build time instead.";
       render();
     });
   }
@@ -652,6 +677,10 @@
 
   // ---------- footer: notes status + data checks ----------
   function renderFooterNotes() {
+    var box = el("conn");
+    if (box) box.innerHTML = [["Result", diag.result], ["Site found", diag.site + (diag.via ? " (from " + diag.via + ")" : "")], ["Page address", diag.address],
+      ["Inside a frame", diag.inFrame], ["Referring page", diag.referrer], ["SharePoint page context", diag.context]]
+      .map(function (r) { return "<tr><th>" + esc(r[0]) + "</th><td>" + esc(r[1]) + "</td></tr>"; }).join("");
     el("footNotes").textContent = "Notes: " + ({ live: "live from SharePoint", sample: "sample notes", none: "none" })[notes.status] + (notes.detail ? " (" + notes.detail + ")" : "");
   }
   function renderChecks(rows) {
