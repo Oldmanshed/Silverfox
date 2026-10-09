@@ -65,21 +65,34 @@ Salesforce domain. They go into the build as `--gainsight-url` / `--salesforce-u
 | When | Who | Step | Stage 1 (pilot) | Stage 2 (automated) |
 |---|---|---|---|---|
 | Day 1 | Matik (scheduled) | Pull Gainsight → Excel dump in the SharePoint folder | Same | Same |
-| Day 1 | Build step | Read the dump, add it as this week's snapshot, rebuild the page | Owner runs two commands (~5 min) | Power Automate flow triggers when the dump lands |
+| Day 1 | Build step | Read all dumps in the folder and rebuild the page | Owner double-clicks **Build risk page** (~2 min) | Power Automate flow triggers when the dump lands |
 | Day 1 | Build step | Publish the page | Owner uploads the HTML to Site Pages | Flow writes the page into Site Pages |
 | Day 1 | Owner | Sanity check: open the page and compare the headline numbers with the dump; read **Data checks** | Same | Same (flow can email a summary) |
 | Days 1–5 | Leaders | Review their region on the page, open at-risk accounts in Gainsight, make sure plans there are current, prepare their own analysis | Same | Same |
 | Review call | Everyone | Walk through Overview → each slide, per region | Same | Same |
 
-### Stage 1 commands (pilot, on the owner's laptop)
-```bash
-python tools/build.py add "CRS_Dump_2026-10-09.xlsx" --snapshot 2026-10-09
-python tools/build.py html --gainsight-url "https://<tenant>.gainsightcloud.com/...{gsid}" \
-    --salesforce-url "https://<domain>.lightning.force.com/lightning/r/Account/{accountId}/view"
-# then upload risk-dashboard.html to Site Pages
+### Stage 1: run from the synced SharePoint folder
+Everything lives in one SharePoint document library folder, synced to the owner's laptop
+with **Sync** (or "Add shortcut to My files"):
+
 ```
-Needs Python with `pandas` and `openpyxl`. `data/history.json` holds every past
-snapshot (that's what the Week switch uses); keep a copy in the SharePoint folder.
+Risk Review/
+  Tool/     this folder: Build risk page.bat, src/, tools/
+  Dumps/    CRS_Dump_YYYY-MM-DD.xlsx, one per cycle (Matik writes here)
+  Output/   risk-dashboard.html (the build writes here)
+```
+
+1. Check this cycle's dump is in `Dumps/`, named with its date.
+2. Double-click **Tool/Build risk page.bat**. It reads every dated dump, keeps the newest
+   13, and writes `Output/risk-dashboard.html`. OneDrive syncs it back to SharePoint.
+3. Upload `Output/risk-dashboard.html` to Site Pages (a short Power Automate flow,
+   "when Output changes, copy to Site Pages", can take over this step later).
+
+**The Dumps folder is the history.** Don't rename or delete files in it. To correct a
+week, replace that week's file and rebuild. Excel lock files (`~$…`) and files
+without a date in the name are ignored. Needs Python with `pandas` and `openpyxl`
+(`pip install -r requirements.txt`). Set the Gainsight and Salesforce link formats once,
+at the top of the `.bat` file.
 
 ### Stage 2: Power Automate (no laptop)
 1. **Trigger:** "When a file is created" in `Risk Review/Dumps/`.

@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Build the CRS risk dashboard: Matik workbook -> JSON history -> one HTML file.
 
+  # Recommended: build from a folder of dated dumps (the folder is the history)
+  python tools/build.py html --dumps "../Dumps" -o "../Output/risk-dashboard.html"
+
+  # Or keep a history file:
   # 1. Add a snapshot from the Matik dump (reads the raw SourceData sheet, which
   #    should carry Sales Entity and Sales Region columns for every row)
   python tools/build.py add CRS_Dump.xlsx --snapshot 2026-10-09
@@ -23,6 +27,7 @@ import argparse
 import json
 import math
 import random
+import re
 import sys
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -180,8 +185,45 @@ def add_snapshot(args):
         print(f"  ! {w}")
 
 
+DATE_IN_NAME = re.compile(r"(\d{4}-\d{2}-\d{2})")
+
+
+def load_dumps(folder: Path, keep: int, sheet: str):
+    """Treat a folder of dated Matik dumps (e.g. CRS_Dump_2026-10-09.xlsx) as the snapshot history."""
+    if not folder.is_dir():
+        raise SystemExit(f"Dumps folder not found: {folder}")
+    found = {}
+    for f in sorted(folder.iterdir()):
+        if f.name.startswith("~$") or f.suffix.lower() not in (".xlsx", ".xlsm"):
+            continue  # Excel lock files appear while a dump is open
+        m = DATE_IN_NAME.search(f.stem)
+        try:
+            day = date.fromisoformat(m.group(1)) if m else None
+        except ValueError:
+            day = None
+        if not day:
+            print(f"  ! Skipped {f.name}: no YYYY-MM-DD date in the file name")
+            continue
+        if day in found:
+            raise SystemExit(f"Two dumps for {day}: {found[day].name} and {f.name}. Keep one per date.")
+        found[day] = f
+    if not found:
+        raise SystemExit(f"No dated dumps (e.g. CRS_Dump_2026-10-09.xlsx) in {folder}")
+    data = {"meta": {}, "snapshots": [], "rows": [], "warnings": {}}
+    for day in sorted(found)[-keep:]:
+        rows, warnings = read_source_data(found[day], sheet, None, None)
+        for r in rows:
+            r["snapshot"] = day.isoformat()
+        data["rows"].extend(rows)
+        data["snapshots"].append(snapshot_entry(day))
+        if warnings:
+            data["warnings"][found[day].name] = warnings
+        print(f"Read {len(rows)} rows from {found[day].name}")
+    return data
+
+
 def build_html(args):
-    data = load(args.data)
+    data = load_dumps(args.dumps, args.keep, args.sheet) if args.dumps else load(args.data)
     if not data["rows"]:
         raise SystemExit(f"{args.data} has no rows yet: run 'add' first (or 'sample')")
     # Settings come from META in this file; a data file only adds extras (e.g. the sample's note and links).
@@ -196,6 +238,7 @@ def build_html(args):
     html = TEMPLATE.read_text(encoding="utf-8")
     if PLACEHOLDER not in html:
         raise SystemExit(f"{TEMPLATE}: placeholder {PLACEHOLDER} not found")
+    args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(html.replace(PLACEHOLDER, payload), encoding="utf-8")
     print(f"Wrote {args.out} ({args.out.stat().st_size / 1024:.0f} KB, {len(data['rows'])} rows, {len(data['snapshots'])} snapshots)")
 
@@ -322,6 +365,9 @@ def main():
     a.add_argument("--data", type=Path, default=HISTORY)
     h = sub.add_parser("html", help="build risk-dashboard.html")
     h.add_argument("--data", type=Path, default=HISTORY)
+    h.add_argument("--dumps", type=Path, help="folder of dated Matik dumps to build from (instead of --data)")
+    h.add_argument("--keep", type=int, default=13, help="with --dumps: how many of the latest snapshots to include (default 13)")
+    h.add_argument("--sheet", default="SourceData")
     h.add_argument("-o", "--out", type=Path, default=OUT)
     h.add_argument("--gainsight-url", help="Gainsight account link with a {gsid} placeholder, e.g. https://<tenant>.gainsightcloud.com/v1/ui/customersuccess360?cid={gsid}")
     h.add_argument("--salesforce-url", help="Salesforce account link, e.g. https://<domain>.lightning.force.com/lightning/r/Account/{accountId}/view")

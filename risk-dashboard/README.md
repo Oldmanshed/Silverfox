@@ -59,19 +59,21 @@ python tools/build.py html \
 address bar. If the Matik dump has a ready-made **Gainsight URL** column, that's used
 as-is and no template is needed.
 
-## 2. Use real data (on your machine, not in this repo)
+## 2. Use real data
+
+Run it from a synced SharePoint folder (`Risk Review/Tool`, `Dumps`, `Output`); the
+full steps are in [PROCESS.md](PROCESS.md). In short: Matik writes
+`Dumps/CRS_Dump_YYYY-MM-DD.xlsx`, then you double-click **Build risk page.bat**, then
+upload `Output/risk-dashboard.html` to Site Pages.
 
 ```bash
-pip install pandas openpyxl
-python tools/build.py add "CRS_Dump.xlsx" --snapshot 2026-10-09   # one dump, all regions
-python tools/build.py html                                          # -> risk-dashboard.html, upload this
-# older single-region workbooks: add --region "Europe North" --entity EMEA
+pip install -r requirements.txt
+python tools/build.py html --dumps "../Dumps" -o "../Output/risk-dashboard.html"
 ```
 
-- It reads the **raw `SourceData` sheet only**. The slide logic (Consumption, Technical,
-  and so on) is done in the page, so none of the formula sheets need to recalculate
-  before a build.
-- Re-running the same snapshot replaces it, so mistakes are easy to fix.
+- It reads the **raw `SourceData` sheet only**. The slide logic is done in the page,
+  so the formula sheets don't need to recalculate.
+- Every dated dump in the folder becomes one week on the Week switch (newest 13).
 - `*.xlsx` and `data/*.json` are git-ignored, so customer data can't be committed by accident.
 
 ### Data contract (SourceData headers → page)
