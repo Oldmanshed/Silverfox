@@ -17,7 +17,7 @@ the numbers, then an **automated** run so no one builds anything by hand.
 |---|---|
 | Page runs inside a SharePoint HTML page, switches work | ✅ Tested in your tenant |
 | Build step turns a Gainsight-shaped extract into the page | ✅ Tested on TESTDATA + EMEA test Data (143 accounts, totals match the source) |
-| Page can read the notes lists live | ⏳ Waiting on the connection test result |
+| Notes from SharePoint lists shown on the page | ✅ Via the build step. The SharePoint sandbox (`about:srcdoc`) stops the page reading lists itself |
 | Matik produces one dump for all regions | ⬜ Needs the Matik change below |
 | Build runs without a person | ⬜ Stage 2 |
 
@@ -66,24 +66,27 @@ Give managers *Contribute* permission on both lists and *Read* on the page.
 | Day 1 | Build step | Read the dump, add it as this week's snapshot, rebuild the page | Owner runs two commands (~5 min) | Power Automate flow triggers when the dump lands |
 | Day 1 | Build step | Publish the page | Owner uploads the HTML to Site Pages | Flow writes the page into Site Pages |
 | Day 1 | Owner | Sanity check: open the page and compare the headline numbers with the dump; read **Data checks** | Same | Same (flow can email a summary) |
-| Days 1–5 | Managers | Add account notes and region callouts in the lists | Same | Same |
+| Days 1–5 | Managers | Add account notes and region callouts in the lists | Owner exports both lists to CSV and rebuilds before the call | Flow rebuilds the page when a note is added (appears within minutes) |
 | Review call | Everyone | Walk through Overview → each slide, per region | Same | Same |
 
 ### Stage 1 commands (pilot, on the owner's laptop)
 ```bash
 python tools/build.py add "CRS_Dump_2026-10-09.xlsx" --snapshot 2026-10-09
-python tools/build.py html          # then upload risk-dashboard.html to Site Pages
+python tools/build.py html --notes "Account Risk Notes.csv" --callouts "Region Callouts.csv" \
+    --site-url https://<tenant>.sharepoint.com/sites/<site>   # then upload risk-dashboard.html
 ```
 Needs Python with `pandas` and `openpyxl`. `data/history.json` holds every past
 snapshot (that's what the Week switch uses); keep a copy in the SharePoint folder.
 
 ### Stage 2: Power Automate (no laptop)
-1. **Trigger:** "When a file is created" in `Risk Review/Dumps/`.
+1. **Triggers:** "When a file is created" in `Risk Review/Dumps/` (new data), and
+   "When an item is created or modified" in either notes list (new notes).
 2. **Office Script** (runs inside Excel online): reads the `SourceData` table,
    applies the same clean-up as `build.py` (column mapping, consumption scale),
    and returns the rows as JSON.
 3. **Get file content:** `history.json` from the library; append this snapshot; save it back.
-4. **Get file content:** `template.html`; replace `__RISK_DATA__` with the history JSON.
+4. **Get items** from both notes lists; **Get file content:** `template.html`; replace
+   `__RISK_DATA__` with the history plus the notes as JSON.
 5. **Create/replace file:** `Site Pages/risk-dashboard.html`.
 6. **Send email** to the owner with headline numbers and data-check counts.
 

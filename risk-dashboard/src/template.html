@@ -59,7 +59,6 @@
   h1 { font-size: 32px; line-height: 1.15; margin: 6px 0 4px; font-weight: 700; letter-spacing: -0.015em; }
   .sub { color: var(--ink-2); font-size: 14px; }
   .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); font-size: 12px; margin-left: 6px; vertical-align: 1px; }
-  .pill.live { background: rgba(12, 163, 12, 0.12); color: var(--good-text); }
 
   /* toolbar */
   .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 22px 0 6px; }
@@ -154,11 +153,6 @@
   footer summary { cursor: pointer; }
   .checks { list-style: none; padding: 0; margin: 8px 0 0; }
   .checks li { padding: 3px 0; }
-  .conn-test { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; color: var(--ink-2); font-size: 13px; }
-  .conn-test summary { font-weight: 600; color: var(--ink); }
-  table.conn { margin-top: 8px; }
-  table.conn th, table.conn td { background: none; border-bottom: 1px solid var(--grid); padding: 6px 8px; font-size: 13px; text-align: left; word-break: break-all; white-space: normal; }
-  table.conn th { width: 190px; color: var(--ink-2); border-radius: 0; }
 
   .tip { position: absolute; pointer-events: none; z-index: 10; display: none; background: var(--surface); color: var(--ink); border: 1px solid var(--border); box-shadow: 0 4px 16px rgba(0,0,0,.14); border-radius: 8px; padding: 8px 10px; font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
   .tip b { display: block; margin-bottom: 2px; }
@@ -222,9 +216,6 @@
     <span id="footGen"></span>
     <span id="footNotes"></span>
     <details><summary id="checksSummary">Data checks</summary><ul class="checks" id="checks"></ul></details>
-    <details class="conn-test" open><summary>SharePoint connection test</summary>
-      <table class="conn"><tbody id="conn"></tbody></table>
-    </details>
   </footer>
 </div>
 <div class="tip" id="tip" role="status"></div>
@@ -331,8 +322,11 @@
   function riskRows(rows) { return rows.filter(function (r) { return r._cat !== "healthy"; }); }
   function weekOnly(sn) { return sn ? String(sn.label || sn.id).split(" · ")[0] : ""; }
 
-  // ---------- manager notes and callouts (SharePoint lists) ----------
-  var notes = { list: DATA.sampleNotes || [], callouts: DATA.sampleCallouts || [], status: DATA.sampleNotes ? "sample" : "none", detail: "" };
+  // ---------- manager notes and callouts ----------
+  // SharePoint shows HTML pages in a sandboxed frame that can't read lists, so the
+  // build step copies the "Account Risk Notes" and "Region Callouts" lists into the page.
+  var notes = DATA.notes ? { list: DATA.notes, callouts: DATA.callouts || [], status: "built" }
+    : { list: DATA.sampleNotes || [], callouts: DATA.sampleCallouts || [], status: DATA.sampleNotes ? "sample" : "none" };
   var noteIdx = {};
   function indexNotes() {
     noteIdx = {};
@@ -348,60 +342,10 @@
     var c = cutoff();
     return list.filter(function (n) { return n.created < c; });
   }
-  // What the page can see of where it is running. Shown in the connection test box.
-  var SITE_RE = /^(https:\/\/[^/]+\.sharepoint\.com(?:\/(?:sites|teams)\/[^/?#]+)?)/i;
-  var diag = { address: "", inFrame: "", referrer: "", context: "", site: "", via: "", result: "Not tried yet" };
-  function safe(f) { try { return f(); } catch (e) { return "(hidden: " + e.name + ")"; } }
-  function webUrl() {
-    diag.address = safe(function () { return location.href.split("#")[0]; });
-    diag.inFrame = safe(function () { return window.self !== window.top ? "yes" : "no"; });
-    diag.referrer = safe(function () { return document.referrer || "(none)"; });
-    var ctx = safe(function () { return window._spPageContextInfo && window._spPageContextInfo.webAbsoluteUrl; });
-    diag.context = ctx ? "found" : "not available";
-    if (ctx && ctx.indexOf("(hidden") !== 0) { diag.via = "page context"; return ctx; }
-    var m = SITE_RE.exec(String(diag.address));
-    if (m) { diag.via = "page address"; return m[1]; }
-    m = SITE_RE.exec(String(diag.referrer));
-    if (m) { diag.via = "referring page"; return m[1]; }
-    return null;
-  }
-  var WEB = webUrl();
-  diag.site = WEB || "(could not work out the SharePoint site)";
-  function listFormUrl(title) { return WEB && title ? WEB + "/Lists/" + title.replace(/\s+/g, "") + "/NewForm.aspx" : null; }
-  function fetchList(title, fields) {
-    var url = WEB + "/_api/web/lists/getbytitle('" + encodeURIComponent(title.replace(/'/g, "''")) + "')/items?$top=5000&$orderby=Created desc&$select=*,Author/Title&$expand=Author";
-    var timeout = new Promise(function (_, reject) { setTimeout(function () { reject(new Error("no reply after 15 seconds")); }, 15000); });
-    return Promise.race([fetch(url, { headers: { Accept: "application/json;odata=nometadata" }, credentials: "include" }), timeout])
-      .then(function (res) { if (!res.ok) throw new Error("HTTP " + res.status); return res.json(); })
-      .then(function (j) {
-        return (j.value || []).map(function (it) {
-          var o = { author: it.Author && it.Author.Title, created: String(it.Created || "").slice(0, 10) };
-          Object.keys(fields).forEach(function (k) { o[k] = it[fields[k]]; });
-          return o;
-        });
-      });
-  }
-  function loadLiveNotes() {
-    if (!WEB) { notes.detail = "page is not on SharePoint"; diag.result = "Not tried: the page couldn't work out which SharePoint site it is on."; renderFooterNotes(); return; }
-    if (!NOTES_CFG.list || !window.fetch) { diag.result = "Not tried: no notes list configured, or this browser has no fetch."; renderFooterNotes(); return; }
-    notes.detail = "connecting…"; diag.result = "Connecting to " + WEB + " …"; renderFooterNotes();
-    fetchList(NOTES_CFG.list, NOTES_CFG.fields || {}).then(function (list) {
-      diag.result = "✓ Read the \"" + NOTES_CFG.list + "\" list: " + list.length + " notes. Live notes work.";
-      notes.list = list; notes.status = "live"; notes.detail = list.length + " notes";
-      indexNotes(); render();
-      if (NOTES_CFG.calloutsList) {
-        return fetchList(NOTES_CFG.calloutsList, NOTES_CFG.calloutFields || {}).then(function (c) { notes.callouts = c; render(); })
-          .catch(function (e) { notes.detail += "; callouts list not read (" + e.message + ")"; renderFooterNotes(); });
-      }
-    }).catch(function (e) {
-      notes.detail = "couldn't read the \"" + NOTES_CFG.list + "\" list: " + e.message;
-      var m = e.message;
-      diag.result = m === "HTTP 404" ? "✓ Reached SharePoint. The \"" + NOTES_CFG.list + "\" list doesn't exist yet (HTTP 404). Create it and notes will load."
-        : /HTTP 40[13]/.test(m) ? "Reached SharePoint but was refused (" + m + "). Check permissions on the list."
-        : "✗ Couldn't reach SharePoint from the page (" + m + "). Notes will need to be added at build time instead.";
-      render();
-    });
-  }
+  var SITE = NOTES_CFG.siteUrl || null;
+  function listFormUrl(title) { return SITE && title ? SITE + "/Lists/" + title.replace(/\s+/g, "") + "/NewForm.aspx" : null; }
+  // Inside SharePoint's sandbox the page's own address is "about:srcdoc", which can't be shared.
+  var SANDBOXED = (function () { try { return /^about:/.test(location.href); } catch (e) { return true; } })();
 
   // ---------- toolbar ----------
   function option(v, t, cur) { var o = document.createElement("option"); o.value = v; o.textContent = t; o.selected = v === cur; return o; }
@@ -442,6 +386,7 @@
   el("btnMore").addEventListener("click", function () { el("btnMore").setAttribute("aria-expanded", el("more").classList.toggle("open")); });
   el("btnReset").addEventListener("click", function () { FILTER_KEYS.forEach(function (k) { state[k] = DEFAULTS[k]; }); update(); });
   el("btnPrint").addEventListener("click", function () { window.print(); });
+  if (SANDBOXED) el("btnLink").style.display = "none";
   el("btnLink").addEventListener("click", function () {
     var url; try { url = location.href.split("#")[0] + "#" + hashString(); } catch (e) { url = "#" + hashString(); }
     function done(m) { el("copied").textContent = m; setTimeout(function () { el("copied").textContent = ""; }, 2500); }
@@ -677,11 +622,8 @@
 
   // ---------- footer: notes status + data checks ----------
   function renderFooterNotes() {
-    var box = el("conn");
-    if (box) box.innerHTML = [["Result", diag.result], ["Site found", diag.site + (diag.via ? " (from " + diag.via + ")" : "")], ["Page address", diag.address],
-      ["Inside a frame", diag.inFrame], ["Referring page", diag.referrer], ["SharePoint page context", diag.context]]
-      .map(function (r) { return "<tr><th>" + esc(r[0]) + "</th><td>" + esc(r[1]) + "</td></tr>"; }).join("");
-    el("footNotes").textContent = "Notes: " + ({ live: "live from SharePoint", sample: "sample notes", none: "none" })[notes.status] + (notes.detail ? " (" + notes.detail + ")" : "");
+    var built = META.generatedAt ? " as of " + META.generatedAt : "";
+    el("footNotes").textContent = "Notes: " + ({ built: int(notes.list.length) + " from the SharePoint list" + built, sample: "sample notes", none: "none yet" })[notes.status];
   }
   function renderChecks(rows) {
     var checks = [
@@ -707,7 +649,7 @@
     el("title").textContent = state.view === "overview" ? (sp[0] === "region" ? "Region overview" : sp[0] === "entity" ? sp[1] + " overview" : "Overview") : CAT[state.view].title;
     el("subtitle").textContent = (state.view === "overview" ? "Revenue renewing in the next three quarters, and how much of it is at risk" : CAT[state.view].desc) + " · As of " + (sn.date || sn.id);
     el("flags").innerHTML = (META.note ? '<span class="pill">Sample data</span>' : "") +
-      (notes.status === "live" ? '<span class="pill live">Notes live from SharePoint</span>' : notes.status === "sample" ? '<span class="pill">Sample notes</span>' : "");
+      (notes.status === "sample" ? '<span class="pill">Sample notes</span>' : "");
     el("tabs").innerHTML = '<button type="button" role="tab" class="tab" data-view="overview" aria-selected="' + (state.view === "overview") + '">Overview</button>' +
       CATS.map(function (c) {
         return '<button type="button" role="tab" class="tab" data-view="' + c.id + '" aria-selected="' + (state.view === c.id) + '">' + esc(c.label) + '<span class="n">' + int(members(rows, c).length) + "</span></button>";
@@ -725,7 +667,6 @@
   indexNotes();
   readHash();
   update();
-  loadLiveNotes();
   window.addEventListener("hashchange", function () { readHash(); update(); });
   var lastW = document.documentElement.clientWidth, timer;
   window.addEventListener("resize", function () {

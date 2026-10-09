@@ -31,10 +31,8 @@ It has the same columns as `SourceData`. Use it to test SharePoint before any re
    - [ ] **Snapshot** goes back in time, and the trend chart point is clickable.
    - [ ] The slide tabs switch, and **Show all** expands the table.
    - [ ] Clicking an account opens its notes.
-   - [ ] After creating the two lists below, the footer says **Notes: live from SharePoint**.
+   - [ ] The **Add note** link opens the list's form (the sandbox may block new tabs; tell us if it does).
    - [ ] **More filters → Slide rules → As the current workbook** shows the overlap warning.
-   - [ ] **Copy link** gives a URL that reopens the same view. If SharePoint blocks
-     clipboard access, a pop-up shows the link to copy instead.
    - [ ] **Print / PDF** gives a usable handout.
    - [ ] Hover tooltips appear on the charts.
 
@@ -43,9 +41,14 @@ document library. The page has no external dependencies (no CDNs, no fonts), so 
 
 ## Manager notes and callouts (SharePoint lists)
 
-Notes live in two SharePoint lists on the same site as the page. Every update is a
-**new item**, so each account builds up a week-by-week history. The page shows the
-latest note in the table, and the full history when you click an account.
+Notes live in two SharePoint lists. Every update is a **new item**, so each account
+builds up a week-by-week history. The page shows the latest note in the table, and
+the full history when you click an account.
+
+SharePoint shows HTML pages inside a sandboxed frame (`about:srcdoc`) that can't read
+lists. So the **build step copies the lists into the page**: notes show up on the
+next build. In the automated setup, a new note triggers a rebuild, so notes appear
+within minutes.
 
 **Account Risk Notes.** Create each column with the name shown (no spaces), then rename the display name if you like:
 
@@ -61,11 +64,12 @@ latest note in the table, and the full history when you click an account.
 
 **Region Callouts.** Title (sales region), Week, Callout (multiple lines).
 
-Created by and Created are automatic. The page reads both lists when it opens,
-using the viewer's own permissions. The footer says whether that worked:
-"Notes: live from SharePoint", or the reason it couldn't connect. That doubles as
-the test of whether HTML pages can read lists. List names and column mapping are
-in `META["notes"]` in `tools/build.py`.
+Pilot: in each list choose **Export → Export to CSV**, then build with
+```bash
+python tools/build.py html --notes "Account Risk Notes.csv" --callouts "Region Callouts.csv" \
+    --site-url https://<tenant>.sharepoint.com/sites/<site>
+```
+`--site-url` makes the page's **Add note** / **Add a callout** links open the lists' forms.
 
 ## 2. Use real data (on your machine, not in this repo)
 

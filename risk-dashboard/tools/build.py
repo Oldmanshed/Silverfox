@@ -63,16 +63,10 @@ META = {
     "title": "Area Risk Review",
     "currency": "USD",
     "sources": ["Gainsight", "Salesforce", "Matik"],
-    # Manager notes and sales-leader callouts live in two SharePoint lists on the
-    # same site as the page. Column names are the lists' internal names.
-    "notes": {
-        "list": "Account Risk Notes",
-        "newItemUrl": "Lists/AccountRiskNotes/NewForm.aspx",
-        "fields": {"accountId": "AccountId", "account": "Title", "region": "SalesRegion", "week": "Week",
-                   "analysis": "Analysis", "nextStep": "NextStep", "outlook": "Outlook"},
-        "calloutsList": "Region Callouts",
-        "calloutFields": {"region": "Title", "week": "Week", "text": "Callout"},
-    },
+    # Manager notes and sales-leader callouts live in two SharePoint lists. The build
+    # copies them into the page (html --notes/--callouts); siteUrl (html --site-url)
+    # makes the "Add note" links open the lists' forms.
+    "notes": {"list": "Account Risk Notes", "calloutsList": "Region Callouts"},
     "rules": {
         "consumptionThreshold": 0.5,
         "blankConsumptionIsZero": True,
@@ -183,11 +177,53 @@ def add_snapshot(args):
         print(f"  ! {w}")
 
 
+# SharePoint list export headers (display or internal names) -> note fields.
+NOTE_HEADERS = {
+    "accountId": ["AccountId", "Account Id", "SFDC Account Id"], "account": ["Title", "Account"],
+    "region": ["SalesRegion", "Sales Region"], "week": ["Week"], "analysis": ["Analysis"],
+    "nextStep": ["NextStep", "Next step", "Next Step"], "outlook": ["Outlook"],
+    "author": ["Created By", "Author"], "created": ["Created"],
+}
+CALLOUT_HEADERS = {
+    "region": ["Title", "Region", "Sales Region"], "week": ["Week"], "text": ["Callout"],
+    "author": ["Created By", "Author"], "created": ["Created"],
+}
+
+
+def read_list_export(path: Path, headers: dict):
+    """Read a SharePoint list exported to CSV or Excel (or the same columns from Power Automate)."""
+    import pandas as pd
+
+    df = pd.read_csv(path) if path.suffix.lower() == ".csv" else pd.read_excel(path)
+    norm = {str(c).strip().lower().replace(" ", ""): c for c in df.columns}
+    cols = {}
+    for key, names in headers.items():
+        for n in names:
+            if n.lower().replace(" ", "") in norm:
+                cols[key] = norm[n.lower().replace(" ", "")]
+                break
+    out = []
+    for rec in df.to_dict("records"):
+        item = {k: clean(rec.get(c)) for k, c in cols.items()}
+        if item.get("created") is not None:
+            item["created"] = str(pd.to_datetime(item["created"]).date())
+        out.append(item)
+    print(f"Read {len(out)} items from {path.name} (columns: {', '.join(sorted(cols))})")
+    return out
+
+
 def build_html(args):
     data = load(args.data)
     if not data["rows"]:
         raise SystemExit(f"{args.data} has no rows yet: run 'add' first (or 'sample')")
-    data["meta"] = {**META, **data.get("meta", {}), "generatedAt": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}
+    data["meta"] = {**data.get("meta", {}), **{k: v for k, v in META.items() if k != "note"},
+                    "generatedAt": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}
+    if args.site_url:
+        data["meta"]["notes"] = {**data["meta"]["notes"], "siteUrl": args.site_url.rstrip("/")}
+    if args.notes:
+        data["notes"] = read_list_export(args.notes, NOTE_HEADERS)
+    if args.callouts:
+        data["callouts"] = read_list_export(args.callouts, CALLOUT_HEADERS)
     payload = json.dumps(data, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
     html = TEMPLATE.read_text(encoding="utf-8")
     if PLACEHOLDER not in html:
@@ -360,6 +396,9 @@ def main():
     h = sub.add_parser("html", help="build risk-dashboard.html")
     h.add_argument("--data", type=Path, default=HISTORY)
     h.add_argument("-o", "--out", type=Path, default=OUT)
+    h.add_argument("--notes", type=Path, help="export of the Account Risk Notes list (CSV or Excel)")
+    h.add_argument("--callouts", type=Path, help="export of the Region Callouts list (CSV or Excel)")
+    h.add_argument("--site-url", help="SharePoint site URL, for the Add note links (e.g. https://contoso.sharepoint.com/sites/risk)")
     s = sub.add_parser("sample", help="write fictional sample data")
     s.add_argument("-o", "--out", type=Path, default=SAMPLE)
     args = ap.parse_args()
